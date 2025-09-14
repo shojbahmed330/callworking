@@ -1575,7 +1575,6 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         };
         await db.collection('campaigns').add(removeUndefined(campaignToSave));
     },
-    // FIX: Implement missing methods for ad tracking, lead generation, and campaign retrieval.
     async getRandomActiveCampaign(): Promise<Campaign | null> {
         const q = db.collection('campaigns').where('status', '==', 'active');
         const snapshot = await q.get();
@@ -1611,7 +1610,10 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         }
     },
     async submitLead(leadData: Omit<Lead, 'id'>): Promise<void> {
-        await db.collection('leads').add(leadData);
+        await db.collection('leads').add({
+            ...leadData,
+            createdAt: serverTimestamp(),
+        });
     },
     async getLeadsForCampaign(campaignId: string): Promise<Lead[]> {
         const q = db.collection('leads').where('campaignId', '==', campaignId).orderBy('createdAt', 'desc');
