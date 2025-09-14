@@ -1,6 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-// FIX: Add missing ReplyInfo import.
-import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author } from '../types';
+import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author, Call } from '../types';
 import { VOICE_EMOJI_MAP, MOCK_MUSIC_LIBRARY, DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS } from '../constants';
 import { firebaseService } from './firebaseService';
 
@@ -216,14 +215,12 @@ export const geminiService = {
 
   // --- This is a mock/simulated function ---
   async getRecommendedFriends(userId: string): Promise<User[]> {
-      // FIX: Changed firebaseService.getAllUsers() to firebaseService.getAllUsersForAdmin() which exists.
       const allUsers = await firebaseService.getAllUsersForAdmin();
       const currentUser = allUsers.find(u => u.id === userId);
       if (!currentUser) return [];
 
       const friendsAndRequests = new Set([
           ...currentUser.friendIds || [],
-          // FIX: Removed non-existent properties. This is a mock function, so its logic doesn't need to be perfect.
           userId
       ]);
 
@@ -319,9 +316,7 @@ export const geminiService = {
 
   // --- Mocks & Simulations ---
   
-  // --- This is a mock/simulated function ---
   async sendAudioPost(userId: string, duration: number, caption: string): Promise<Post> {
-    // FIX: firebaseService.createPost returns void. Construct and return a mock post object.
     const user = await firebaseService.getUserProfileById(userId);
     if (!user) throw new Error("User not found for creating post");
     
@@ -342,13 +337,10 @@ export const geminiService = {
   },
   
   // --- Posts ---
-  // FIX: Updated function signature to include missing parameters `friendIds` and `blockedUserIds` to match the underlying firebaseService call.
   listenToFeedPosts(currentUserId: string, friendIds: string[], blockedUserIds: string[], callback: (posts: Post[]) => void) {
       return firebaseService.listenToFeedPosts(currentUserId, friendIds, blockedUserIds, callback);
   },
 
-   // --- Messages ---
-// FIX: Add passthrough exports for chat-related methods to fix multiple errors.
   getChatId: (user1Id, user2Id) => firebaseService.getChatId(user1Id, user2Id),
   listenToMessages: (chatId, callback) => firebaseService.listenToMessages(chatId, callback),
   listenToConversations: (userId, callback) => firebaseService.listenToConversations(userId, callback),
@@ -374,14 +366,12 @@ export const geminiService = {
         }
         return {
             messageId: message.id,
-            // In a real app, you might fetch the name, but senderId is sufficient for a snippet
             senderName: message.senderId,
             content: content
         };
     },
 
     // --- Rooms ---
-    // @FIXML-FIX: Add missing pass-through functions to resolve multiple errors.
     listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void) => firebaseService.listenToLiveAudioRooms(callback),
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
     listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),
@@ -509,4 +499,10 @@ export const geminiService = {
             };
         }
     },
+    
+    // --- 1-on-1 Calls ---
+    createCall: (caller, callee, chatId, type) => firebaseService.createCall(caller, callee, chatId, type),
+    listenForIncomingCalls: (userId, callback) => firebaseService.listenForIncomingCalls(userId, callback),
+    listenToCall: (callId, callback) => firebaseService.listenToCall(callId, callback),
+    updateCallStatus: (callId, status) => firebaseService.updateCallStatus(callId, status),
 };

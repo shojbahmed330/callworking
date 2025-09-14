@@ -378,6 +378,17 @@ export interface Lead {
   createdAt: string; // ISO string
 }
 
+export interface Call {
+  id: string;
+  caller: Author;
+  callee: Author;
+  chatId: string;
+  type: 'audio' | 'video';
+  status: 'ringing' | 'active' | 'rejected' | 'ended' | 'missed' | 'declined';
+  createdAt: string; // ISO string
+  endedAt?: string; // ISO string
+}
+
 
 export enum AppView {
   AUTH,
@@ -411,6 +422,7 @@ export enum AppView {
   CREATE_REEL,
   MOBILE_MENU,
   GROUP_INVITE,
+  CALL_SCREEN,
 }
 
 export enum RecordingState {

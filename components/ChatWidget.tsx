@@ -201,16 +201,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   };
   
   const handleInitiateCall = async (type: 'audio' | 'video') => {
-    const roomType = type === 'audio' ? AppView.LIVE_ROOM : AppView.LIVE_VIDEO_ROOM;
-    const createFunction = type === 'audio' ? geminiService.createLiveAudioRoom : geminiService.createLiveVideoRoom;
-    
     try {
-        const newRoom = await createFunction(currentUser, `Call with ${peerUser.name}`);
-        if (newRoom) {
-            onNavigate(roomType, { roomId: newRoom.id });
-        }
+        // Create a call document in Firestore
+        const callId = await firebaseService.createCall(currentUser, peerUser, chatId, type);
+        
+        // Navigate the caller to the call screen
+        onNavigate(AppView.CALL_SCREEN, {
+            callId,
+            peerUser,
+            isCaller: true,
+        });
     } catch (error) {
-        console.error(`Failed to create ${type} room:`, error);
+        console.error(`Failed to create ${type} call:`, error);
+        // Optionally show an error to the user
     }
   };
 
@@ -253,7 +256,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
       </header>
       <main className="flex-grow overflow-y-auto p-3 space-y-4 flex flex-col">
         {messages.map((msg) => (
-            // FIX: Removed invalid 'peerUser' prop. The MessageBubble component does not expect this prop, causing a TypeScript error.
             <MessageBubble
                 key={msg.id}
                 message={msg}

@@ -6,7 +6,7 @@ import 'firebase/compat/storage';
 import { User as FirebaseUser } from 'firebase/auth';
 
 import { db, auth, storage } from './firebaseConfig';
-import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation } from '../types';
+import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
 const { serverTimestamp, increment, arrayUnion, arrayRemove, delete: deleteField } = firebase.firestore.FieldValue;
@@ -298,7 +298,6 @@ export const firebaseService = {
     },
 
     // --- Friends (New Secure Flow) ---
-// FIX: Add the missing getFriendRequests function to match the one called by geminiService.
     async getFriendRequests(userId: string): Promise<User[]> {
         const q = db.collection('friendRequests')
             .where('to.id', '==', userId)
@@ -873,14 +872,10 @@ export const firebaseService = {
         const chatId = firebaseService.getChatId(user1.id, user2.id);
         const chatRef = db.collection('chats').doc(chatId);
     
-        // Create mutable copies to potentially enrich them if they are incomplete.
         let enrichedUser1 = { ...user1 };
         let enrichedUser2 = { ...user2 };
     
         try {
-            // FIX: The error occurs because a user object passed here might be missing 'username'.
-            // This defensive check fetches the full user profile if 'username' is missing,
-            // preventing 'undefined' from being sent to Firestore. This also fixes existing chat documents.
             if (!enrichedUser1.username) {
                 console.warn(`Incomplete current user object (ID: ${enrichedUser1.id}). Fetching full profile.`);
                 const fullProfile = await this.getUserProfileById(enrichedUser1.id);
@@ -892,7 +887,6 @@ export const firebaseService = {
                 if (fullProfile) enrichedUser2 = fullProfile;
             }
             
-            // If after fetching, a username is STILL missing, we cannot proceed.
             if (!enrichedUser1.username || !enrichedUser2.username) {
                 throw new Error(`Could not resolve a username for one of the chat participants (${enrichedUser1.id}, ${enrichedUser2.id}). This may be a data consistency issue.`);
             }
@@ -1315,6 +1309,76 @@ export const firebaseService = {
         }
     },
     
+    // --- 1-on-1 Calls ---
+    async createCall(caller: User, callee: User, chatId: string, type: 'audio' | 'video'): Promise<string> {
+        const callRef = db.collection('calls').doc();
+        const callData: Omit<Call, 'id'> = {
+            caller: { id: caller.id, name: caller.name, username: caller.username, avatarUrl: caller.avatarUrl },
+            callee: { id: callee.id, name: callee.name, username: callee.username, avatarUrl: callee.avatarUrl },
+            chatId,
+            type,
+            status: 'ringing',
+            createdAt: new Date().toISOString(),
+        };
+        await callRef.set(callData);
+        return callRef.id;
+    },
+
+    listenForIncomingCalls(userId: string, callback: (call: Call | null) => void): () => void {
+        const q = db.collection('calls')
+            .where('callee.id', '==', userId)
+            .where('status', '==', 'ringing')
+            .limit(1);
+
+        return q.onSnapshot(snapshot => {
+            if (snapshot.empty) {
+                callback(null);
+                return;
+            }
+            const doc = snapshot.docs[0];
+            const data = doc.data();
+            const call: Call = {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+            } as Call;
+            callback(call);
+        });
+    },
+
+    listenToCall(callId: string, callback: (call: Call | null) => void): () => void {
+        const callRef = db.collection('calls').doc(callId);
+        return callRef.onSnapshot(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                 const call: Call = {
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+                } as Call;
+                callback(call);
+            } else {
+                callback(null);
+            }
+        });
+    },
+
+    async updateCallStatus(callId: string, status: Call['status']): Promise<void> {
+        const callRef = db.collection('calls').doc(callId);
+        const updateData: { status: Call['status'], endedAt?: any } = { status };
+        if (status === 'ended' || status === 'rejected' || status === 'missed' || status === 'declined') {
+            updateData.endedAt = serverTimestamp();
+        }
+        await callRef.update(updateData);
+
+        // Clean up old calls after a short delay
+        if (status === 'ended' || status === 'rejected' || status === 'missed' || status === 'declined') {
+           setTimeout(() => {
+               callRef.delete().catch(e => console.error("Failed to clean up call document:", e));
+           }, 5000); // Delete after 5 seconds
+        }
+    },
+
     // --- Rooms ---
 listenToLiveAudioRooms(callback: (rooms: LiveAudioRoom[]) => void) {
     const q = db.collection('liveAudioRooms').where('status', '==', 'live');
@@ -1510,6 +1574,53 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             transactionId,
         };
         await db.collection('campaigns').add(removeUndefined(campaignToSave));
+    },
+    // FIX: Implement missing methods for ad tracking, lead generation, and campaign retrieval.
+    async getRandomActiveCampaign(): Promise<Campaign | null> {
+        const q = db.collection('campaigns').where('status', '==', 'active');
+        const snapshot = await q.get();
+        if (snapshot.empty) {
+            return null;
+        }
+        const campaigns = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt instanceof firebase.firestore.Timestamp ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString(),
+        } as Campaign));
+
+        return campaigns[Math.floor(Math.random() * campaigns.length)];
+    },
+    async trackAdView(campaignId: string): Promise<void> {
+        const campaignRef = db.collection('campaigns').doc(campaignId);
+        try {
+            await campaignRef.update({
+                views: increment(1)
+            });
+        } catch (error) {
+            console.warn(`Could not track view for campaign ${campaignId}:`, error);
+        }
+    },
+    async trackAdClick(campaignId: string): Promise<void> {
+        const campaignRef = db.collection('campaigns').doc(campaignId);
+        try {
+            await campaignRef.update({
+                clicks: increment(1)
+            });
+        } catch (error) {
+            console.warn(`Could not track click for campaign ${campaignId}:`, error);
+        }
+    },
+    async submitLead(leadData: Omit<Lead, 'id'>): Promise<void> {
+        await db.collection('leads').add(leadData);
+    },
+    async getLeadsForCampaign(campaignId: string): Promise<Lead[]> {
+        const q = db.collection('leads').where('campaignId', '==', campaignId).orderBy('createdAt', 'desc');
+        const snapshot = await q.get();
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt instanceof firebase.firestore.Timestamp ? doc.data().createdAt.toDate().toISOString() : doc.data().createdAt,
+        } as Lead));
     },
     async getStories(currentUserId: string): Promise<{ author: User; stories: Story[]; allViewed: boolean; }[]> {
         // This is a simplified mock as the full implementation is complex.
@@ -1909,75 +2020,6 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             } as Story;
         } catch (error) {
             console.error("Error getting injectable story ad:", error);
-            return null;
-        }
-    },
-
-    async trackAdView(campaignId: string): Promise<void> {
-        if (!campaignId) return;
-        const campaignRef = db.collection('campaigns').doc(campaignId);
-        try {
-            await campaignRef.update({
-                views: increment(1)
-            });
-        } catch (error) {
-            console.error("Error tracking ad view:", error);
-        }
-    },
-
-    async trackAdClick(campaignId: string): Promise<void> {
-        if (!campaignId) return;
-        const campaignRef = db.collection('campaigns').doc(campaignId);
-        try {
-            await campaignRef.update({
-                clicks: increment(1)
-            });
-        } catch (error) {
-            console.error("Error tracking ad click:", error);
-        }
-    },
-
-    async submitLead(leadData: Omit<Lead, 'id'>): Promise<void> {
-        try {
-            await db.collection('leads').add({
-                ...leadData,
-                createdAt: serverTimestamp() // Use server timestamp for accuracy
-            });
-        } catch (error) {
-            console.error("Error submitting lead:", error);
-            throw error;
-        }
-    },
-
-    async getLeadsForCampaign(campaignId: string): Promise<Lead[]> {
-        try {
-            const q = db.collection('leads').where('campaignId', '==', campaignId).orderBy('createdAt', 'desc');
-            const snapshot = await q.get();
-            return snapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-                } as Lead;
-            });
-        } catch (error) {
-            console.error("Error fetching leads for campaign:", error);
-            return [];
-        }
-    },
-    async getRandomActiveCampaign(): Promise<Campaign | null> {
-        try {
-            const q = db.collection('campaigns').where('status', '==', 'active');
-            const snapshot = await q.get();
-            if (snapshot.empty) {
-                return null;
-            }
-            const campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Campaign));
-            const randomIndex = Math.floor(Math.random() * campaigns.length);
-            return campaigns[randomIndex];
-        } catch (error) {
-            console.error("Error getting random active campaign:", error);
             return null;
         }
     },

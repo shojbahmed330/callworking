@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story, Conversation } from './types';
+import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story, Conversation, Call } from './types';
 import AuthScreen from './components/AuthScreen';
 import FeedScreen from './components/FeedScreen';
 import ExploreScreen from './components/ExploreScreen';
@@ -45,6 +45,8 @@ import LeadFormModal from './components/LeadFormModal';
 import ImageModal from './components/ImageModal';
 import { useSettings } from './contexts/SettingsContext';
 import ChatManager from './components/ChatManager';
+import IncomingCallModal from './components/IncomingCallModal';
+import CallScreen from './components/CallScreen';
 
 
 interface ViewState {
@@ -175,6 +177,7 @@ const UserApp: React.FC = () => {
   const [minimizedChats, setMinimizedChats] = useState<Set<string>>(new Set());
   const [chatUnreadCounts, setChatUnreadCounts] = useState<Record<string, number>>({});
   const [isChatRecording, setIsChatRecording] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   
   const userRef = useRef(user);
   userRef.current = user;
@@ -382,6 +385,11 @@ const UserApp: React.FC = () => {
     const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, setNotifications);
     unsubscribes.push(unsubscribeNotifications);
     
+    const unsubscribeCalls = firebaseService.listenForIncomingCalls(user.id, (call) => {
+        setIncomingCall(call);
+    });
+    unsubscribes.push(unsubscribeCalls);
+
     return () => {
         unsubscribes.forEach(unsub => unsub());
     };
@@ -898,6 +906,21 @@ const UserApp: React.FC = () => {
     setHeaderSearchQuery('');
     setIsMobileSearchOpen(false);
   };
+  
+  const handleAcceptCall = async (call: Call) => {
+      await firebaseService.updateCallStatus(call.id, 'active');
+      setIncomingCall(null);
+      navigate(AppView.CALL_SCREEN, {
+          callId: call.id,
+          peerUser: call.caller,
+          isCaller: false,
+      });
+  };
+
+  const handleRejectCall = async (call: Call) => {
+      await firebaseService.updateCallStatus(call.id, 'declined');
+      setIncomingCall(null);
+  };
 
   const renderView = () => {
     if (isAuthLoading) {
@@ -991,6 +1014,8 @@ const UserApp: React.FC = () => {
         return <StoryPrivacyScreen {...commonScreenProps} {...currentView.props} />;
       case AppView.GROUP_INVITE:
         return <GroupInviteScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.CALL_SCREEN:
+        return <CallScreen {...commonScreenProps} {...currentView.props} />;
       case AppView.MOBILE_MENU:
         return <MobileMenuScreen currentUser={user} onNavigate={navigate} onLogout={handleLogout} friendRequestCount={friendRequestCount} />;
       default:
@@ -1146,7 +1171,13 @@ const UserApp: React.FC = () => {
        {viewerPost && (
          <ImageModal post={viewerPost} currentUser={user} isLoading={isLoadingViewerPost} onClose={handleClosePhotoViewer} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} onOpenProfile={handleOpenProfile} onSharePost={handleSharePost}/>
       )}
-
+       {incomingCall && (
+          <IncomingCallModal 
+              call={incomingCall}
+              onAccept={handleAcceptCall}
+              onReject={handleRejectCall}
+          />
+      )}
        <MobileBottomNav 
         onNavigate={handleNavigation}
         friendRequestCount={friendRequestCount}

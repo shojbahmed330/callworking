@@ -1,5 +1,5 @@
 {
-  "name": "2nd time working now Voicebook working Voice call- After Completed-Message issues",
+  "name": "working now Voicebook working Attached message, video and audio call icon- After Completed-Message issues",
   "description": "A fully voice-controlled social media application where you can sign up, log in, navigate your feed, post audio, comment, and more, all using your voice. This implementation simulates the voice experience through a text-based command interface powered by the Gemini API.",
   "requestFramePermissions": [
     "microphone",
