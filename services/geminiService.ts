@@ -337,7 +337,7 @@ export const geminiService = {
   },
   
   // --- Posts ---
-  listenToFeedPosts(currentUserId: string, friendIds: string[], blockedUserIds: string[], callback: (posts: Post[]) => void) {
+  listenToFeedPosts: (currentUserId: string, friendIds: string[], blockedUserIds: string[], callback: (posts: Post[]) => void) => {
       return firebaseService.listenToFeedPosts(currentUserId, friendIds, blockedUserIds, callback);
   },
 
@@ -501,6 +501,7 @@ export const geminiService = {
     },
     
     // --- 1-on-1 Calls ---
+    getAgoraToken: (channelName: string, uid: string | number) => firebaseService.getAgoraToken(channelName, uid),
     createCall: (caller, callee, chatId, type) => firebaseService.createCall(caller, callee, chatId, type),
     listenForIncomingCalls: (userId, callback) => firebaseService.listenForIncomingCalls(userId, callback),
     listenToCall: (callId, callback) => firebaseService.listenToCall(callId, callback),

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Call, AppView } from '../types';
 import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';
 import { AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
+import { geminiService } from '../services/geminiService';
 
 interface CallScreenProps {
   currentUser: User;
@@ -69,6 +70,15 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
         }
     }, [isCaller, call?.status, callId]);
 
+    // Fix: Add useCallback to the import from 'react'
+    const handleHangUp = useCallback(() => {
+        if (callStatusRef.current === 'ringing' && !isCaller) {
+             firebaseService.updateCallStatus(callId, 'declined');
+        } else {
+             firebaseService.updateCallStatus(callId, 'ended');
+        }
+    }, [callId, isCaller]);
+
     // Agora Lifecycle
     useEffect(() => {
         const setupAgora = async (callType: 'audio' | 'video') => {
@@ -91,7 +101,14 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 firebaseService.updateCallStatus(callId, 'ended');
             });
 
-            await client.join(AGORA_APP_ID, callId, null, currentUser.id);
+            const token = await geminiService.getAgoraToken(callId, currentUser.id);
+            if (!token) {
+                console.error("Failed to retrieve Agora token. The call cannot proceed.");
+                handleHangUp();
+                return;
+            }
+
+            await client.join(AGORA_APP_ID, callId, token, currentUser.id);
 
             const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
             localAudioTrack.current = audioTrack;
@@ -124,15 +141,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             localVideoTrack.current?.close();
             agoraClient.current?.leave();
         };
-    }, [call?.type, callId, currentUser.id]);
-
-    const handleHangUp = () => {
-        if (call?.status === 'ringing' && !isCaller) {
-             firebaseService.updateCallStatus(callId, 'declined');
-        } else {
-             firebaseService.updateCallStatus(callId, 'ended');
-        }
-    };
+    }, [call?.type, callId, currentUser.id, handleHangUp]);
     
     const toggleMute = () => {
         const muted = !isMuted;

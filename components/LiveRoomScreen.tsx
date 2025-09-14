@@ -88,13 +88,17 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             client.enableAudioVolumeIndicator();
             client.on('volume-indicator', handleVolumeIndicator);
             
-            // Join the Agora channel
-            // We use numeric UIDs for Agora, but our app uses string IDs.
-            // For simplicity in this demo, we'll parse the user's string ID if it's numeric,
-            // otherwise, a more robust mapping would be needed.
-            // A simple hash function or a backend service is better for production.
             const uid = parseInt(currentUser.id, 36) % 10000000;
-            await client.join(AGORA_APP_ID, roomId, null, uid);
+            
+            const token = await geminiService.getAgoraToken(roomId, uid);
+            if (!token) {
+                console.error("Failed to retrieve Agora token. Cannot join room.");
+                onSetTtsMessage("Could not join the room due to a connection issue.");
+                onGoBack();
+                return;
+            }
+
+            await client.join(AGORA_APP_ID, roomId, token, uid);
 
             // Fetch room data from Firestore to check roles
             const roomDetails = await geminiService.getAudioRoomDetails(roomId);
