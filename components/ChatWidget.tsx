@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Message, ReplyInfo } from '../types';
+import { User, Message, ReplyInfo, AppView } from '../types';
 import { firebaseService } from '../services/firebaseService';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
@@ -13,14 +13,76 @@ interface ChatWidgetProps {
   onHeaderClick: (peerId: string) => void;
   isMinimized: boolean;
   unreadCount: number;
-  // FIX: Add setIsChatRecording to props to manage global recording state.
   setIsChatRecording: (isRecording: boolean) => void;
+  onNavigate: (view: AppView, props?: any) => void;
 }
 
 enum RecordingState { IDLE, RECORDING, PREVIEW }
 const EMOJI_REACTIONS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose, onMinimize, onHeaderClick, isMinimized, unreadCount, setIsChatRecording }) => {
+const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (message: Message) => void; onReact: (messageId: string, emoji: string) => void; onUnsend: (messageId: string) => void; }> = ({ message, isMe, onReply, onReact, onUnsend }) => {
+    const [isHovered, setIsHovered] = useState(false);
+    const [isActionMenuOpen, setActionMenuOpen] = useState(false);
+
+    const renderContent = () => {
+        if (message.isDeleted) {
+            return <p className={`italic text-sm ${isMe ? 'text-slate-400' : 'text-slate-500'}`}>Message unsent</p>;
+        }
+        switch (message.type) {
+            case 'image':
+                return <img src={message.mediaUrl} alt="Sent" className="max-w-xs max-h-48 rounded-lg cursor-pointer" />;
+            case 'video':
+                return <video src={message.mediaUrl} controls className="max-w-xs max-h-48 rounded-lg" />;
+            case 'audio':
+                return <audio src={message.audioUrl} controls className="w-48" />;
+            case 'text':
+            default:
+                return <p className="text-sm break-words">{message.text}</p>;
+        }
+    };
+    
+    const hasReactions = message.reactions && Object.values(message.reactions).flat().length > 0;
+
+    return (
+        <div className={`flex items-end gap-2 group ${isMe ? 'flex-row-reverse' : ''}`}>
+            <div 
+                className="flex items-center gap-2"
+                onMouseEnter={() => setIsHovered(true)} 
+                onMouseLeave={() => setIsHovered(false)}
+            >
+                 <div className={`flex-shrink-0 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                    <button onClick={() => onReply(message)} className="p-1 rounded-full hover:bg-slate-600"><Icon name="reply" className="w-4 h-4 text-slate-400"/></button>
+                    <button onClick={() => setActionMenuOpen(true)} className="p-1 rounded-full hover:bg-slate-600"><Icon name="dots-horizontal" className="w-4 h-4 text-slate-400"/></button>
+                 </div>
+
+                 <div className={`relative px-3 py-2 rounded-2xl ${isMe ? 'bg-rose-600 text-white' : 'bg-slate-600 text-slate-100'}`}>
+                    {renderContent()}
+                    {hasReactions && (
+                        <div className="absolute -bottom-2.5 right-1 bg-slate-700 rounded-full px-1.5 text-xs flex items-center gap-1 border border-slate-900">
+                             {Object.entries(message.reactions).slice(0, 3).map(([emoji]) => <span key={emoji}>{emoji}</span>)}
+                        </div>
+                    )}
+                 </div>
+            </div>
+
+            {isActionMenuOpen && (
+                 <div className="relative">
+                    <div className="absolute bottom-0 left-0 bg-slate-800 rounded-full p-1 flex items-center gap-1 shadow-lg border border-slate-600">
+                        {EMOJI_REACTIONS.map(emoji => (
+                            <button key={emoji} onClick={() => { onReact(message.id, emoji); setActionMenuOpen(false); }} className="text-lg p-1 rounded-full hover:bg-slate-700 transition-transform hover:scale-125">
+                                {emoji}
+                            </button>
+                        ))}
+                         {isMe && !message.isDeleted && <button onClick={() => { onUnsend(message.id); setActionMenuOpen(false); }} className="p-2 rounded-full hover:bg-slate-700"><Icon name="trash" className="w-4 h-4 text-red-400"/></button>}
+                    </div>
+                 </div>
+            )}
+        </div>
+    );
+};
+
+
+const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose, onMinimize, onHeaderClick, isMinimized, unreadCount, setIsChatRecording, onNavigate }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -36,11 +98,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
 
   const chatId = firebaseService.getChatId(currentUser.id, peerUser.id);
 
-  // FIX: Add useEffect to update the global chat recording state.
   useEffect(() => {
     setIsChatRecording(recordingState === RecordingState.RECORDING);
-
-    // When component unmounts (chat is closed), ensure recording state is reset globally.
     return () => {
       setIsChatRecording(false);
     }
@@ -92,7 +151,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
       await firebaseService.sendMessage(chatId, currentUser, peerUser, { type, mediaFile: file, replyTo: replyToInfo });
       setReplyingTo(null);
       
-      e.target.value = ''; // Reset file input
+      e.target.value = '';
   }
 
   const handleStartRecording = async () => {
@@ -107,7 +166,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
         mediaRecorderRef.current.onstop = () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
             const url = URL.createObjectURL(audioBlob);
-            // FIX: Removed erroneous clearInterval call. timerRef holds a timestamp, not an interval ID.
             const duration = Math.round((Date.now() - (timerRef.current || Date.now())) / 1000);
             setAudioPreview({ url, blob: audioBlob, duration });
             setRecordingState(RecordingState.PREVIEW);
@@ -141,6 +199,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
         firebaseService.unsendMessage(chatId, messageId, currentUser.id);
     }
   };
+  
+  const handleInitiateCall = async (type: 'audio' | 'video') => {
+    const roomType = type === 'audio' ? AppView.LIVE_ROOM : AppView.LIVE_VIDEO_ROOM;
+    const createFunction = type === 'audio' ? geminiService.createLiveAudioRoom : geminiService.createLiveVideoRoom;
+    
+    try {
+        const newRoom = await createFunction(currentUser, `Call with ${peerUser.name}`);
+        if (newRoom) {
+            onNavigate(roomType, { roomId: newRoom.id });
+        }
+    } catch (error) {
+        console.error(`Failed to create ${type} room:`, error);
+    }
+  };
 
   if (isMinimized) {
     return (
@@ -169,8 +241,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
           <span className="text-white font-semibold">{peerUser.name}</span>
         </button>
         <div className="flex items-center text-rose-400">
-          <button className="p-2 rounded-full hover:bg-slate-700/50"><Icon name="phone" className="w-5 h-5"/></button>
-          <button className="p-2 rounded-full hover:bg-slate-700/50"><Icon name="video-camera" className="w-5 h-5"/></button>
+          <button onClick={() => handleInitiateCall('audio')} className="p-2 rounded-full hover:bg-slate-700/50"><Icon name="phone" className="w-5 h-5"/></button>
+          <button onClick={() => handleInitiateCall('video')} className="p-2 rounded-full hover:bg-slate-700/50"><Icon name="video-camera" className="w-5 h-5"/></button>
           <button onClick={(e) => { e.stopPropagation(); onMinimize(peerUser.id); }} className="p-2 rounded-full hover:bg-slate-700/50">
              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
           </button>
@@ -179,8 +251,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
           </button>
         </div>
       </header>
-      <main className="flex-grow overflow-y-auto p-3 space-y-1">
-        {/* Messages */}
+      <main className="flex-grow overflow-y-auto p-3 space-y-4 flex flex-col">
+        {messages.map((msg) => (
+            // FIX: Removed invalid 'peerUser' prop. The MessageBubble component does not expect this prop, causing a TypeScript error.
+            <MessageBubble
+                key={msg.id}
+                message={msg}
+                isMe={msg.senderId === currentUser.id}
+                onReply={setReplyingTo}
+                onReact={handleReact}
+                onUnsend={handleUnsend}
+            />
+        ))}
         <div ref={messagesEndRef} />
       </main>
       <footer className="p-2 border-t border-slate-700">
@@ -195,7 +277,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
         <div className="flex items-center gap-2">
           <input type="file" ref={mediaInputRef} onChange={handleFileChange} accept="image/*,video/*" className="hidden"/>
           <button onClick={() => mediaInputRef.current?.click()} className="p-2 rounded-full text-rose-400 hover:bg-slate-700/50"><Icon name="add-circle" className="w-6 h-6"/></button>
-          {newMessage.trim() === '' && !audioPreview ? (
+          {newMessage.trim() === '' && !audioPreview && recordingState === RecordingState.IDLE ? (
               <button onClick={handleStartRecording} className="p-2 rounded-full text-rose-400 hover:bg-slate-700/50"><Icon name="mic" className="w-6 h-6"/></button>
           ) : null}
           <div className="flex-grow">

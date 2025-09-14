@@ -1127,6 +1127,7 @@ const UserApp: React.FC = () => {
             onCloseChat={handleCloseChat}
             onMinimizeToggle={handleMinimizeToggle}
             setIsChatRecording={setIsChatRecording}
+            onNavigate={navigate}
           />
       )}
       

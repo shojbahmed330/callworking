@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { User } from '../types';
+import { User, AppView } from '../types';
 import ChatWidget from './ChatWidget';
 import { firebaseService } from '../services/firebaseService';
 
@@ -12,6 +12,7 @@ interface ChatManagerProps {
   onCloseChat: (peerId: string) => void;
   onMinimizeToggle: (peerId: string) => void;
   setIsChatRecording: (isRecording: boolean) => void;
+  onNavigate: (view: AppView, props?: any) => void;
 }
 
 const ChatManager: React.FC<ChatManagerProps> = ({
@@ -23,6 +24,7 @@ const ChatManager: React.FC<ChatManagerProps> = ({
   onCloseChat,
   onMinimizeToggle,
   setIsChatRecording,
+  onNavigate,
 }) => {
   const friendsMap = useMemo(() => {
     const map = new Map<string, User>();
@@ -55,6 +57,7 @@ const ChatManager: React.FC<ChatManagerProps> = ({
             isMinimized={true}
             unreadCount={chatUnreadCounts[firebaseService.getChatId(currentUser.id, peer.id)] || 0}
             setIsChatRecording={setIsChatRecording}
+            onNavigate={onNavigate}
           />
         ))}
         {openChats.map(peer => (
@@ -68,6 +71,7 @@ const ChatManager: React.FC<ChatManagerProps> = ({
             isMinimized={false}
             unreadCount={0}
             setIsChatRecording={setIsChatRecording}
+            onNavigate={onNavigate}
           />
         ))}
       </div>
