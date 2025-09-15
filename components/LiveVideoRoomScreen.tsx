@@ -160,14 +160,14 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 setLocalVideoTrackState(videoTrack);
 
                 await client.publish([audioTrack, videoTrack]);
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Agora failed to join or publish:", error);
-                if (error instanceof Error && (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError')) {
-                    onSetTtsMessage(getTtsPrompt('error_mic_not_found', language) + " Camera may also be unavailable.");
-                } else if (error instanceof Error && error.name === 'NotAllowedError') {
-                    onSetTtsMessage(getTtsPrompt('error_mic_permission', language));
+                if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
+                    onSetTtsMessage("Could not find a microphone or camera. Please check your devices and permissions.");
+                } else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') {
+                    onSetTtsMessage("Microphone/camera access was denied. Please allow access in your browser settings.");
                 } else {
-                    onSetTtsMessage(getTtsPrompt('error_generic', language));
+                    onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
                 }
                 onGoBack();
             }

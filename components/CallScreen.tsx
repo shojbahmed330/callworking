@@ -13,9 +13,10 @@ interface CallScreenProps {
   callId: string;
   isCaller: boolean;
   onGoBack: () => void;
+  onSetTtsMessage: (message: string) => void;
 }
 
-const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, isCaller, onGoBack }) => {
+const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, isCaller, onGoBack, onSetTtsMessage }) => {
     const [call, setCall] = useState<Call | null>(null);
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
@@ -100,34 +101,45 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 firebaseService.updateCallStatus(callId, 'ended');
             });
 
-            const uid = parseInt(currentUser.id, 36) % 10000000;
-            const token = await geminiService.getAgoraToken(callId, uid);
-            if (!token) {
-                console.error("Failed to retrieve Agora token. The call cannot proceed.");
-                handleHangUp();
-                return;
-            }
-
-            await client.join(AGORA_APP_ID, callId, token, uid);
-
-            const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-            localAudioTrack.current = audioTrack;
-
-            let tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [audioTrack];
-            if (callType === 'video') {
-                try {
-                    const videoTrack = await AgoraRTC.createCameraVideoTrack();
-                    localVideoTrack.current = videoTrack;
-                    tracksToPublish.push(videoTrack);
-                    if (localVideoRef.current) {
-                        videoTrack.play(localVideoRef.current);
-                    }
-                } catch (videoError) {
-                    console.error("Could not get camera track:", videoError);
-                    setIsCameraOff(true); // Default to camera off if it fails
+            try {
+                const uid = parseInt(currentUser.id, 36) % 10000000;
+                const token = await geminiService.getAgoraToken(callId, uid);
+                if (!token) {
+                    throw new Error("Failed to retrieve Agora token. The call cannot proceed.");
                 }
+
+                await client.join(AGORA_APP_ID, callId, token, uid);
+
+                const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                localAudioTrack.current = audioTrack;
+
+                let tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [audioTrack];
+                if (callType === 'video') {
+                    try {
+                        const videoTrack = await AgoraRTC.createCameraVideoTrack();
+                        localVideoTrack.current = videoTrack;
+                        tracksToPublish.push(videoTrack);
+                        if (localVideoRef.current) {
+                            videoTrack.play(localVideoRef.current);
+                        }
+                    } catch (videoError: any) {
+                        console.error("Could not get camera track:", videoError);
+                        // Don't throw, just disable camera and continue with audio
+                        setIsCameraOff(true); 
+                    }
+                }
+                await client.publish(tracksToPublish);
+            } catch (error: any) {
+                 console.error("Agora setup failed:", error);
+                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
+                    onSetTtsMessage("Could not find a microphone. Please check your devices and permissions.");
+                } else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') {
+                    onSetTtsMessage("Microphone access was denied. Please allow access in your browser settings.");
+                } else {
+                    onSetTtsMessage(`Could not start the call: ${error.message || 'Unknown error'}`);
+                }
+                handleHangUp(); // End the call gracefully
             }
-            await client.publish(tracksToPublish);
         };
 
         if (call?.type) {
@@ -141,7 +153,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             localVideoTrack.current?.close();
             agoraClient.current?.leave();
         };
-    }, [call?.type, callId, currentUser.id, handleHangUp]);
+    }, [call?.type, callId, currentUser.id, handleHangUp, onSetTtsMessage]);
     
     const toggleMute = () => {
         const muted = !isMuted;
