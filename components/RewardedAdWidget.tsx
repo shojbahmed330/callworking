@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { Campaign } from '../types';
 import Icon from './Icon';
@@ -13,7 +11,7 @@ const RewardedAdWidget: React.FC<RewardedAdWidgetProps> = ({ campaign, onAdClick
     
     if (!campaign) {
         return (
-            <div className="bg-gradient-to-br from-emerald-800 to-teal-800 rounded-2xl p-4 w-full max-w-lg mx-auto border border-emerald-600/50 animate-pulse">
+            <div className="bg-gradient-to-br from-emerald-800 to-teal-800 rounded-2xl p-4 w-full max-w-lg md:max-w-2xl mx-auto border border-emerald-600/50 animate-pulse">
                 <div className="flex items-center gap-4">
                     <div className="flex-shrink-0 w-20 h-20 bg-emerald-700/50 rounded-lg"></div>
                     <div className="flex-grow space-y-2">
@@ -34,7 +32,7 @@ const RewardedAdWidget: React.FC<RewardedAdWidgetProps> = ({ campaign, onAdClick
     const mediaUrl = campaign.imageUrl || campaign.videoUrl || campaign.audioUrl;
 
     return (
-        <div className="bg-gradient-to-br from-emerald-800 to-teal-800 rounded-2xl p-4 w-full max-w-lg mx-auto border border-emerald-600/50">
+        <div className="bg-gradient-to-br from-emerald-800 to-teal-800 rounded-2xl p-4 w-full max-w-lg md:max-w-2xl mx-auto border border-emerald-600/50">
             <div className="flex items-center justify-between gap-4">
                  <div className="flex-shrink-0 bg-slate-700 rounded-lg w-20 h-20 flex items-center justify-center">
                     {mediaUrl && campaign.imageUrl ? (

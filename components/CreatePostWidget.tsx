@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { User } from '../types';
 import Icon from './Icon';
@@ -10,7 +9,7 @@ interface CreatePostWidgetProps {
 
 const CreatePostWidget: React.FC<CreatePostWidgetProps> = ({ user, onStartCreatePost }) => {
   return (
-    <div className="bg-slate-900/50 border border-lime-500/20 rounded-lg p-4 w-full max-w-lg mx-auto">
+    <div className="bg-slate-900/50 border border-lime-500/20 rounded-lg p-4 w-full max-w-lg md:max-w-2xl mx-auto">
       <div className="flex items-center gap-4">
         <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
         <button

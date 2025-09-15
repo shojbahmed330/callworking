@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -55,6 +54,8 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
   
   const isInitialLoad = useRef(true);
   const isProgrammaticScroll = useRef(false);
+  const currentPostIndexRef = useRef(currentPostIndex);
+  currentPostIndexRef.current = currentPostIndex;
 
   useEffect(() => {
     setPosts(initialPosts);
@@ -330,7 +331,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
                 const indexStr = (mostVisibleEntry.target as HTMLElement).dataset.index;
                 if (indexStr) {
                     const index = parseInt(indexStr, 10);
-                    if (currentPostIndex !== index) {
+                    if (currentPostIndexRef.current !== index) {
                          setCurrentPostIndex(index);
                          setIsPlaying(false);
                     }
@@ -353,7 +354,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
             if (ref) observer.unobserve(ref);
         });
     };
-  }, [posts, currentPostIndex]);
+  }, [posts]);
 
 
   useEffect(() => {
@@ -364,7 +365,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
+      <div className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
           <SkeletonPostCard />
           <SkeletonPostCard />
           <SkeletonPostCard />
@@ -373,7 +374,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
   }
 
   return (
-    <div ref={feedContainerRef} className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
+    <div ref={feedContainerRef} className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
         <StoriesTray 
             currentUser={currentUser}
             storiesByAuthor={storiesByAuthor}

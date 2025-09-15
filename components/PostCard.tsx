@@ -1,5 +1,3 @@
-
-
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { Post, User, Comment, GroupRole } from '../types';
 import Icon from './Icon';
@@ -378,7 +376,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
       <div
         onClick={post.isSponsored ? handleAdClick : handleView}
         className={`
-          bg-slate-900/70 backdrop-blur-sm rounded-lg p-5 sm:p-6 w-full max-w-lg mx-auto transition-all duration-300 ease-in-out border
+          bg-slate-900/70 backdrop-blur-sm rounded-lg p-5 sm:p-6 w-full max-w-lg md:max-w-2xl mx-auto transition-all duration-300 ease-in-out border
           ${post.isSponsored ? 'cursor-pointer hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-800'}
           ${isActive ? 'border-lime-400/50 ring-2 ring-lime-400/20' : 'border-lime-500/20'}
         `}
