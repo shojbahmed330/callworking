@@ -189,7 +189,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     };
 
     const renderMainView = () => (
-        <div className="w-full max-w-3xl bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="w-full max-w-4xl bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
             <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                 <h2 className="text-xl font-bold text-slate-100">Create post</h2>
                 <button onClick={onGoBack} className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
@@ -278,7 +278,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
          const filteredFeelings = FEELINGS.filter(f => f.text.toLowerCase().includes(search.toLowerCase()));
 
         return (
-            <div className="w-full max-w-3xl bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-4xl bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
                 <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                     <button onClick={() => setSubView('main')} className="absolute top-1/2 -translate-y-1/2 left-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
                         <Icon name="back" className="w-5 h-5 text-slate-300" />
