@@ -36,13 +36,18 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     const [caption, setCaption] = useState('');
     const [feeling, setFeeling] = useState<Feeling | null>(null);
     const [subView, setSubView] = useState<SubView>('main');
-    const [imagePrompt, setImagePrompt] = useState('');
-    const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isPosting, setIsPosting] = useState(false);
     const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
+    // --- New State for Image Upload & Editing ---
+    const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+    const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null);
+    const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
+    const [editPrompt, setEditPrompt] = useState('');
+    const [isEditingImage, setIsEditingImage] = useState(false);
+
     const emojiPickerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const { language } = useSettings();
 
     useEffect(() => {
@@ -59,8 +64,22 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
     
-    const handleGenerateImage = useCallback(async () => {
-        if (!imagePrompt.trim() || isGeneratingImage) return;
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+            setUploadedImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setUploadedImagePreview(reader.result as string);
+                setEditedImageUrl(null); // Clear previous edits
+                setEditPrompt('');
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleEditImage = useCallback(async () => {
+        if (!editPrompt.trim() || !uploadedImagePreview || isEditingImage) return;
 
         if ((currentUser.voiceCoins || 0) < IMAGE_GENERATION_COST) {
             onSetTtsMessage(getTtsPrompt('image_generation_insufficient_coins', language, { cost: IMAGE_GENERATION_COST, balance: currentUser.voiceCoins || 0 }));
@@ -69,23 +88,28 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
 
         const paymentSuccess = await onDeductCoinsForImage();
         if (!paymentSuccess) return;
+
+        setIsEditingImage(true);
+        onSetTtsMessage("Editing your image with AI...");
+
+        const base64Data = uploadedImagePreview.split(',')[1];
+        const mimeType = uploadedImageFile?.type || 'image/jpeg';
         
-        setGeneratedImageUrl(null);
-        setIsGeneratingImage(true);
-        onSetTtsMessage("Generating your masterpiece...");
-        const imageUrl = await geminiService.generateImageForPost(imagePrompt);
-        setIsGeneratingImage(false);
-        
-        if(imageUrl) {
-            setGeneratedImageUrl(imageUrl);
-            onSetTtsMessage(`Image generated! You can now add a caption.`);
+        const resultUrl = await geminiService.editImage(base64Data, mimeType, editPrompt);
+        setIsEditingImage(false);
+
+        if (resultUrl) {
+            setEditedImageUrl(resultUrl);
+            onSetTtsMessage("Image edited successfully!");
         } else {
-            onSetTtsMessage(`Sorry, I couldn't generate an image for that prompt. Please try another one.`);
+            onSetTtsMessage("Sorry, the AI couldn't edit the image. Please try a different prompt.");
         }
-    }, [imagePrompt, isGeneratingImage, onSetTtsMessage, currentUser.voiceCoins, onDeductCoinsForImage, language]);
+    }, [editPrompt, uploadedImagePreview, uploadedImageFile, isEditingImage, currentUser.voiceCoins, onDeductCoinsForImage, onSetTtsMessage, language]);
 
     const handlePost = useCallback(async () => {
-        const hasContent = caption.trim() || generatedImageUrl || feeling;
+        const finalImageUrl = editedImageUrl || uploadedImagePreview;
+        const hasContent = caption.trim() || finalImageUrl || feeling;
+
         if (isPosting || !hasContent) {
             onSetTtsMessage("Please add some content before posting.");
             return;
@@ -100,13 +124,19 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                 caption: caption,
                 status: groupId ? 'pending' : 'approved',
                 feeling: feeling,
-                imagePrompt: generatedImageUrl ? imagePrompt : undefined,
+                imagePrompt: editedImageUrl ? editPrompt : undefined,
                 groupId,
                 groupName,
-                duration: 0, // Not an audio post
+                duration: 0,
             };
             
-            await firebaseService.createPost(postBaseData, { generatedImageBase64: generatedImageUrl });
+            await firebaseService.createPost(
+                postBaseData, 
+                { 
+                    mediaFile: editedImageUrl ? null : uploadedImageFile,
+                    generatedImageBase64: editedImageUrl ? editedImageUrl : null
+                }
+            );
 
             if (postBaseData.status === 'pending') {
                 onSetTtsMessage(getTtsPrompt('post_pending_approval', language));
@@ -119,7 +149,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
             onSetTtsMessage(`Failed to create post: ${error.message}`);
             setIsPosting(false);
         }
-    }, [isPosting, caption, currentUser, onSetTtsMessage, onPostCreated, onGoBack, generatedImageUrl, imagePrompt, groupId, groupName, feeling, language]);
+    }, [isPosting, caption, currentUser, onSetTtsMessage, onPostCreated, onGoBack, uploadedImagePreview, uploadedImageFile, editedImageUrl, editPrompt, groupId, groupName, feeling, language]);
 
     const handleFeelingSelect = (selected: Feeling) => {
         setFeeling(selected);
@@ -153,7 +183,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                         onChange={e => setCaption(e.target.value)}
                         placeholder={`What's on your mind, ${currentUser.name.split(' ')[0]}?`}
                         className="w-full bg-transparent text-slate-200 text-2xl my-4 focus:outline-none resize-none"
-                        rows={4}
+                        rows={uploadedImagePreview ? 2 : 4}
                     />
                     <div className="absolute bottom-4 right-0" ref={emojiPickerRef}>
                          <button onClick={() => setEmojiPickerOpen(p => !p)} className="p-2 text-slate-400 hover:text-slate-200">
@@ -169,36 +199,40 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                     </div>
                 </div>
                 
-                {isGeneratingImage && (
-                    <div className="aspect-video bg-slate-700/50 rounded-lg flex items-center justify-center flex-col gap-3 text-slate-300">
-                        <Icon name="logo" className="w-12 h-12 text-rose-500 animate-spin"/>
-                        <p>Generating your masterpiece...</p>
-                    </div>
-                )}
-                {generatedImageUrl && !isGeneratingImage && (
+                {(isEditingImage || uploadedImagePreview) && (
                     <div className="relative group">
-                        <img src={generatedImageUrl} alt={imagePrompt} className="aspect-video w-full rounded-lg object-cover" />
-                        <button onClick={() => setGeneratedImageUrl(null)} className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/80 rounded-full text-white opacity-50 group-hover:opacity-100 transition-opacity">
+                        <img src={editedImageUrl || uploadedImagePreview} alt="Post preview" className="aspect-video w-full rounded-lg object-cover" />
+                        {isEditingImage && (
+                             <div className="absolute inset-0 bg-slate-900/70 rounded-lg flex items-center justify-center flex-col gap-3 text-slate-300">
+                                <Icon name="logo" className="w-12 h-12 text-rose-500 animate-spin"/>
+                                <p>AI is working its magic...</p>
+                            </div>
+                        )}
+                        <button onClick={() => {setUploadedImagePreview(null); setUploadedImageFile(null); setEditedImageUrl(null);}} className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/80 rounded-full text-white opacity-50 group-hover:opacity-100 transition-opacity">
                             <Icon name="close" className="w-5 h-5"/>
                         </button>
                     </div>
                 )}
-
             </main>
 
             <footer className="flex-shrink-0 p-4 space-y-4">
+                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                 <div className="border border-slate-700 rounded-lg p-3 flex items-center justify-around">
-                     <button onClick={() => {}} className="flex items-center gap-2 text-green-400 font-semibold p-2 rounded-md hover:bg-slate-700/50"><Icon name="photo" className="w-6 h-6"/> Photo/video</button>
+                     <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 text-green-400 font-semibold p-2 rounded-md hover:bg-slate-700/50"><Icon name="photo" className="w-6 h-6"/> Photo/video</button>
                      <button onClick={() => setSubView('feelings')} className="flex items-center gap-2 text-yellow-400 font-semibold p-2 rounded-md hover:bg-slate-700/50"><Icon name="face-smile" className="w-6 h-6"/> Feeling</button>
                 </div>
-                 <div className="space-y-2">
-                    <h4 className="text-sm font-semibold text-left text-slate-400">Add an AI Image ({IMAGE_GENERATION_COST} Coins)</h4>
-                    <div className="flex gap-2">
-                        <input type="text" value={imagePrompt} onChange={e => setImagePrompt(e.target.value)} placeholder="e.g., A robot on a skateboard" className="flex-grow bg-slate-700 border-slate-600 rounded-lg p-2.5" />
-                        <button onClick={handleGenerateImage} disabled={!imagePrompt.trim() || isGeneratingImage} className="bg-sky-600 hover:bg-sky-500 disabled:bg-slate-600 text-white font-bold px-4 rounded-lg">Generate</button>
+
+                {uploadedImagePreview && (
+                     <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-left text-slate-400">Edit with AI ({IMAGE_GENERATION_COST} Coins)</h4>
+                        <div className="flex gap-2">
+                            <input type="text" value={editPrompt} onChange={e => setEditPrompt(e.target.value)} placeholder="e.g., Change the saree to black" className="flex-grow bg-slate-700 border-slate-600 rounded-lg p-2.5" />
+                            <button onClick={handleEditImage} disabled={!editPrompt.trim() || isEditingImage} className="bg-sky-600 hover:bg-sky-500 disabled:bg-slate-600 text-white font-bold px-4 rounded-lg">Generate Edit</button>
+                        </div>
                     </div>
-                </div>
-                <button onClick={handlePost} disabled={isPosting || (!caption.trim() && !generatedImageUrl && !feeling)} className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-600 text-white font-bold py-3 rounded-lg text-lg">
+                )}
+
+                <button onClick={handlePost} disabled={isPosting || (!caption.trim() && !editedImageUrl && !uploadedImagePreview && !feeling)} className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-600 text-white font-bold py-3 rounded-lg text-lg">
                     {isPosting ? 'Posting...' : 'Post'}
                 </button>
             </footer>

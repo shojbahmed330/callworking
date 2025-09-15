@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author, Call } from '../types';
 import { VOICE_EMOJI_MAP, MOCK_MUSIC_LIBRARY, DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS } from '../constants';
 import { firebaseService } from './firebaseService';
@@ -307,6 +307,39 @@ export const geminiService = {
           console.error("Failed to generate placeholder image:", error);
           return null;
       }
+  },
+
+  async editImage(base64ImageData: string, mimeType: string, prompt: string): Promise<string | null> {
+    try {
+        const imagePart = {
+            inlineData: {
+                data: base64ImageData,
+                mimeType: mimeType,
+            },
+        };
+        const textPart = {
+            text: prompt,
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: { parts: [imagePart, textPart] },
+            config: {
+                responseModalities: [Modality.IMAGE, Modality.TEXT],
+            },
+        });
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+                // Return a data URL for easy display
+                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            }
+        }
+        return null; // No image found in response
+    } catch (error) {
+        console.error("Error editing image with Gemini:", error);
+        return null;
+    }
   },
   
   // Music Library (Mock)
