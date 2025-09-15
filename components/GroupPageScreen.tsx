@@ -305,7 +305,7 @@ useEffect(() => {
               </h1>
               <p className="text-slate-300 mt-1">{group.memberCount.toLocaleString()} members · {group.privacy === 'public' ? 'Public' : 'Private'} Group</p>
             </div>
-            <div className="flex-shrink-0 flex gap-2">
+            <div className="flex-shrink-0 flex flex-wrap justify-center gap-2 sm:flex-nowrap">
               {isMember && (
                   <button onClick={() => onNavigate(AppView.GROUP_INVITE, { groupId: group.id })} className="bg-lime-600 hover:bg-lime-500 text-black font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
                       <Icon name="add-friend" className="w-5 h-5"/>

@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import Icon from './Icon';
 import { AdminUser } from '../types';
@@ -36,7 +34,7 @@ const NavItem: React.FC<{
 
 const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ adminUser, activeView, onNavigate, onLogout }) => {
   return (
-    <aside className="w-72 bg-slate-800/80 border-r border-slate-700/50 p-4 flex flex-col flex-shrink-0">
+    <aside className="w-full md:w-72 bg-slate-800/80 border-r border-slate-700/50 p-4 flex flex-col flex-shrink-0">
       <div className="flex-grow">
         <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-100">Admin Portal</h2>

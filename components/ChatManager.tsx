@@ -47,8 +47,8 @@ const ChatManager: React.FC<ChatManagerProps> = ({
   const minimizedChatUsers = upToDateActiveChats.filter(c => minimizedChats.has(c.id));
 
   return (
-    <div className="fixed bottom-0 right-0 z-50 flex items-end gap-4 pr-[312px] pointer-events-none">
-      <div className="flex items-end gap-4 pointer-events-auto">
+    <div className="fixed bottom-16 md:bottom-0 right-0 z-50 flex items-end gap-2 p-2 lg:p-4 lg:pr-[312px] pointer-events-none">
+      <div className="flex items-end gap-2 pointer-events-auto">
         {minimizedChatUsers.map(peer => (
           <ChatWidget
             key={peer.id}

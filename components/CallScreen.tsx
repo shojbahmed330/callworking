@@ -27,6 +27,8 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const localVideoTrack = useRef<ICameraVideoTrack | null>(null);
+    // FIX: Add state for local video track to fix undefined 'setLocalVideoTrackState' error.
+    const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null);
     const [remoteUser, setRemoteUser] = useState<IAgoraRTCRemoteUser | null>(null);
 
     const localVideoRef = useRef<HTMLDivElement>(null);

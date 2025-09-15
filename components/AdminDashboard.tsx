@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { AdminUser, User } from '../types';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
@@ -147,7 +145,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminUser, onLogout }) 
     };
 
     return (
-        <div className="h-screen w-screen bg-slate-900 flex font-sans text-white">
+        <div className="h-screen w-screen bg-slate-900 flex flex-col md:flex-row font-sans text-white">
             <AdminDashboardSidebar 
                 adminUser={adminUser}
                 activeView={activeView}
