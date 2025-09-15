@@ -100,14 +100,15 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 firebaseService.updateCallStatus(callId, 'ended');
             });
 
-            const token = await geminiService.getAgoraToken(callId, currentUser.id);
+            const uid = parseInt(currentUser.id, 36) % 10000000;
+            const token = await geminiService.getAgoraToken(callId, uid);
             if (!token) {
                 console.error("Failed to retrieve Agora token. The call cannot proceed.");
                 handleHangUp();
                 return;
             }
 
-            await client.join(AGORA_APP_ID, callId, token, currentUser.id);
+            await client.join(AGORA_APP_ID, callId, token, uid);
 
             const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
             localAudioTrack.current = audioTrack;

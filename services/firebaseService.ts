@@ -2026,16 +2026,15 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         }
     },
     async getAgoraToken(channelName: string, uid: string | number): Promise<string | null> {
-        // IMPORTANT: This function must call a secure, server-side endpoint.
-        // The URL is updated based on the user's request.
-        const TOKEN_SERVER_URL = 'https://agora-nine-swart.vercel.app/api/token'; 
+        // This function now calls the local proxy server to avoid CORS issues.
+        const TOKEN_SERVER_URL = '/api/proxy'; 
 
         try {
             const response = await fetch(`${TOKEN_SERVER_URL}?channelName=${channelName}&uid=${uid}`);
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('Failed to fetch Agora token:', errorText);
-                throw new Error(`Token server responded with ${response.status}`);
+                console.error('Failed to fetch Agora token from proxy:', errorText);
+                throw new Error(`Token proxy server responded with ${response.status}`);
             }
             const data = await response.json();
             if (!data.rtcToken) {
