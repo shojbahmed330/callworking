@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RecordingState, User, Post, PollOption, AppView } from '../types';
 import { IMAGE_GENERATION_COST, getTtsPrompt, REEL_TEXT_FONTS } from '../constants';
@@ -9,7 +8,7 @@ import { firebaseService } from '../services/firebaseService';
 import { useSettings } from '../contexts/SettingsContext';
 
 interface CreatePostScreenProps {
-  user: User;
+  currentUser: User;
   onPostCreated: (newPost: Post | null) => void;
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
@@ -24,7 +23,7 @@ interface CreatePostScreenProps {
 
 const EMOJIS = ['😂', '❤️', '👍', '😢', '😡', '🔥', '😊', '😮'];
 
-const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated, onSetTtsMessage, lastCommand, onDeductCoinsForImage, onCommandProcessed, onGoBack, groupId, groupName, startRecording, selectMedia }) => {
+const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPostCreated, onSetTtsMessage, lastCommand, onDeductCoinsForImage, onCommandProcessed, onGoBack, groupId, groupName, startRecording, selectMedia }) => {
   const [recordingState, setRecordingState] = useState<RecordingState>(RecordingState.IDLE);
   const [duration, setDuration] = useState(0);
   const [caption, setCaption] = useState('');
@@ -172,8 +171,8 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
   const handleGenerateImage = useCallback(async () => {
     if (!imagePrompt.trim() || isGeneratingImage) return;
 
-    if ((user.voiceCoins || 0) < IMAGE_GENERATION_COST) {
-        onSetTtsMessage(getTtsPrompt('image_generation_insufficient_coins', language, { cost: IMAGE_GENERATION_COST, balance: user.voiceCoins || 0 }));
+    if ((currentUser.voiceCoins || 0) < IMAGE_GENERATION_COST) {
+        onSetTtsMessage(getTtsPrompt('image_generation_insufficient_coins', language, { cost: IMAGE_GENERATION_COST, balance: currentUser.voiceCoins || 0 }));
         return;
     }
 
@@ -194,7 +193,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
     } else {
         onSetTtsMessage(`Sorry, I couldn't generate an image for that prompt. Please try another one.`);
     }
-  }, [imagePrompt, isGeneratingImage, onSetTtsMessage, user.voiceCoins, onDeductCoinsForImage, language]);
+  }, [imagePrompt, isGeneratingImage, onSetTtsMessage, currentUser.voiceCoins, onDeductCoinsForImage, language]);
 
   const handlePost = useCallback(async () => {
     const hasPoll = showPollCreator && pollQuestion.trim() && pollOptions.every(opt => opt.trim());
@@ -213,7 +212,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
 
     try {
         const postBaseData: any = {
-            author: user,
+            author: currentUser,
             duration: hasAudio ? duration : 0,
             caption: caption,
             captionStyle: captionStyle,
@@ -257,7 +256,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
         setIsPosting(false);
         setRecordingState(RecordingState.IDLE);
     }
-  }, [isPosting, caption, captionStyle, duration, user, onSetTtsMessage, onPostCreated, onGoBack, generatedImageUrl, imagePrompt, groupId, groupName, showPollCreator, pollQuestion, pollOptions, mediaFile, audioUrl, recordingState, language]);
+  }, [isPosting, caption, captionStyle, duration, currentUser, onSetTtsMessage, onPostCreated, onGoBack, generatedImageUrl, imagePrompt, groupId, groupName, showPollCreator, pollQuestion, pollOptions, mediaFile, audioUrl, recordingState, language]);
   
   const handlePollOptionChange = (index: number, value: string) => {
     const newOptions = [...pollOptions];
@@ -333,7 +332,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
     processCommand();
   }, [lastCommand, recordingState, handleStartRecording, handleStopRecording, handlePost, handleGenerateImage, onCommandProcessed, onGoBack, onSetTtsMessage]);
 
-  const canAffordImage = (user.voiceCoins || 0) >= IMAGE_GENERATION_COST;
+  const canAffordImage = (currentUser.voiceCoins || 0) >= IMAGE_GENERATION_COST;
   const hasContent = caption.trim() || audioUrl || mediaFile || generatedImageUrl || (showPollCreator && pollQuestion.trim());
   
   const cycleFont = () => {
@@ -363,7 +362,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
         <div className="flex items-start gap-4">
-             <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
+             <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-12 h-12 rounded-full" />
              <div className="flex-grow bg-slate-700/50 rounded-lg">
                 <div className="flex gap-2 items-center border-b border-slate-700 p-2">
                     <button onClick={cycleFont} className="p-2 bg-slate-800 rounded-md font-semibold text-xs text-white">{captionStyle.fontFamily}</button>
@@ -381,7 +380,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
                 <textarea
                     value={caption}
                     onChange={e => setCaption(e.target.value)}
-                    placeholder={`What's on your mind, ${user.name.split(' ')[0]}?`}
+                    placeholder={`What's on your mind, ${currentUser.name.split(' ')[0]}?`}
                     className={`w-full bg-transparent text-slate-100 rounded-b-lg p-3 focus:outline-none resize-none min-h-[80px] text-lg ${fontClass} ${fontWeightClass} ${fontStyleClass}`}
                     rows={3}
                 />
