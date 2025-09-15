@@ -5,6 +5,7 @@ import Icon from './Icon';
 import { geminiService } from '../services/geminiService';
 import { firebaseService } from '../services/firebaseService';
 import { useSettings } from '../contexts/SettingsContext';
+import ImageCropper from './ImageCropper';
 
 interface CreatePostScreenProps {
   currentUser: User;
@@ -32,12 +33,29 @@ const EMOJI_PICKER_LIST = [
 type SubView = 'main' | 'feelings';
 type Feeling = { emoji: string; text: string };
 
+const dataURLtoFile = (dataurl: string, filename: string): File | null => {
+    const arr = dataurl.split(',');
+    if (arr.length < 2) { return null; }
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) { return null; }
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+}
+
 const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPostCreated, onSetTtsMessage, lastCommand, onDeductCoinsForImage, onCommandProcessed, onGoBack, groupId, groupName }) => {
     const [caption, setCaption] = useState('');
     const [feeling, setFeeling] = useState<Feeling | null>(null);
     const [subView, setSubView] = useState<SubView>('main');
     const [isPosting, setIsPosting] = useState(false);
     const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
+    
+    const [imageToCrop, setImageToCrop] = useState<string | null>(null);
 
     // --- New State for Image Upload & Editing ---
     const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
@@ -67,16 +85,30 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file && file.type.startsWith('image/')) {
-            setUploadedImageFile(file);
             const reader = new FileReader();
             reader.onloadend = () => {
-                setUploadedImagePreview(reader.result as string);
-                setEditedImageUrl(null); // Clear previous edits
-                setEditPrompt('');
+                setImageToCrop(reader.result as string);
             };
             reader.readAsDataURL(file);
         }
+        e.target.value = '';
     };
+
+    const handleSaveCrop = (croppedImageBase64: string) => {
+        setUploadedImagePreview(croppedImageBase64);
+        const croppedFile = dataURLtoFile(croppedImageBase64, 'cropped_image.jpeg');
+        if (croppedFile) {
+            setUploadedImageFile(croppedFile);
+        }
+        setEditedImageUrl(null);
+        setEditPrompt('');
+        setImageToCrop(null);
+    };
+
+    const handleCancelCrop = () => {
+        setImageToCrop(null);
+    };
+
 
     const handleEditImage = useCallback(async () => {
         if (!editPrompt.trim() || !uploadedImagePreview || isEditingImage) return;
@@ -157,7 +189,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     };
 
     const renderMainView = () => (
-        <div className="w-full max-w-lg bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="w-full max-w-2xl bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
             <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                 <h2 className="text-xl font-bold text-slate-100">Create post</h2>
                 <button onClick={onGoBack} className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
@@ -244,7 +276,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
          const filteredFeelings = FEELINGS.filter(f => f.text.toLowerCase().includes(search.toLowerCase()));
 
         return (
-            <div className="w-full max-w-lg bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-2xl bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
                 <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                     <button onClick={() => setSubView('main')} className="absolute top-1/2 -translate-y-1/2 left-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
                         <Icon name="back" className="w-5 h-5 text-slate-300" />
@@ -268,6 +300,15 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-fade-in-fast" onClick={onGoBack}>
+             {imageToCrop && (
+                <ImageCropper
+                    imageUrl={imageToCrop}
+                    aspectRatio={16 / 9}
+                    onSave={handleSaveCrop}
+                    onCancel={handleCancelCrop}
+                    isUploading={isPosting}
+                />
+            )}
             <div onClick={e => e.stopPropagation()}>
                 {subView === 'main' ? renderMainView() : renderFeelingsView()}
             </div>
