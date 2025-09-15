@@ -138,6 +138,12 @@ export interface Post {
   
   // New Q&A Feature
   bestAnswerId?: string;
+
+  // New Feeling/Activity Feature
+  feeling?: {
+    emoji: string;
+    text: string;
+  };
 }
 
 export interface Comment {

@@ -387,10 +387,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
           <button onClick={handleAuthor} className="flex items-center text-left mb-4 group flex-grow">
             <img src={post.author.avatarUrl} alt={post.author.name} className="w-12 h-12 rounded-full mr-4 transition-all duration-300 group-hover:ring-2 group-hover:ring-offset-2 group-hover:ring-offset-black group-hover:ring-lime-500" />
             <div>
-              <div className="flex items-center">
+              <div className="flex items-center flex-wrap">
                   <p className="font-bold text-lime-200 text-lg transition-colors group-hover:text-lime-400">
-                  {post.isSponsored ? post.sponsorName : post.author.name}
+                    {post.isSponsored ? post.sponsorName : post.author.name}
                   </p>
+                  {post.feeling && (
+                    <p className="font-normal text-lime-300/90 text-lg ml-1.5">
+                        is feeling {post.feeling.emoji} {post.feeling.text}
+                    </p>
+                  )}
                   {groupRole && <GroupRoleBadge role={groupRole} />}
               </div>
               <p className="text-lime-500 text-sm">
