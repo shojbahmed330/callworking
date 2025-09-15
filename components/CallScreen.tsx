@@ -71,6 +71,35 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
         }
     }, [isCaller, call?.status, callId]);
 
+    // Token Renewal Effect to prevent call drops
+    useEffect(() => {
+        let renewalInterval: NodeJS.Timeout | null = null;
+        if (call?.status === 'active') {
+            // Renew token every 45 seconds (well before typical 1-minute expiration)
+            renewalInterval = setInterval(async () => {
+                try {
+                    console.log("Renewing Agora token...");
+                    const uid = parseInt(currentUser.id, 36) % 10000000;
+                    const newToken = await geminiService.getAgoraToken(callId, uid);
+                    if (newToken && agoraClient.current) {
+                        await agoraClient.current.renewToken(newToken);
+                        console.log("Agora token renewed successfully.");
+                    } else {
+                        console.error("Failed to get new token for renewal.");
+                    }
+                } catch (error) {
+                    console.error("Error renewing Agora token:", error);
+                }
+            }, 45000); 
+        }
+
+        return () => {
+            if (renewalInterval) {
+                clearInterval(renewalInterval);
+            }
+        };
+    }, [call?.status, callId, currentUser.id]);
+
     const handleHangUp = useCallback(() => {
         if (callStatusRef.current === 'ringing' && !isCaller) {
              firebaseService.updateCallStatus(callId, 'declined');
