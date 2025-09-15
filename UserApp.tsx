@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story, Conversation, Call } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -209,9 +210,15 @@ const UserApp: React.FC = () => {
   }, []);
 
   const goBack = () => {
-    if (viewStack.length > 1) {
-      setViewStack(stack => stack.slice(0, -1));
-    }
+    setViewStack(stack => {
+        // Only allow going back if there's more than one screen in the stack.
+        // This robustly prevents the stack from ever becoming empty, which causes a crash.
+        if (stack.length > 1) {
+            return stack.slice(0, -1);
+        }
+        // If there's only one screen, do nothing. This is a safe fallback.
+        return stack;
+    });
   };
   
   const handleOpenConversation = useCallback(async (peer: User) => {
