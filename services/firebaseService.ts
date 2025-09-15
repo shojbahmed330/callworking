@@ -2025,29 +2025,28 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             return null;
         }
     },
-    
-  async getAgoraToken(channelName: string, uid: string | number): Promise<string | null> {
-    // IMPORTANT: This function must call a secure, server-side endpoint (like a Firebase Cloud Function)
-    // to generate a temporary Agora token. The App Certificate required for this process
-    // MUST be kept on the server and never exposed in the client-side code.
-    // Replace the URL below with your actual deployed token server URL.
-    const TOKEN_SERVER_URL = 'https://agora-token-server-voicebook.fly.dev/access_token'; 
+    async getAgoraToken(channelName: string, uid: string | number): Promise<string | null> {
+        // IMPORTANT: This function must call a secure, server-side endpoint (like a Firebase Cloud Function)
+        // to generate a temporary Agora token. The App Certificate required for this process
+        // MUST be kept on the server and never exposed in the client-side code.
+        // Replace the URL below with your actual deployed token server URL.
+        const TOKEN_SERVER_URL = 'https://agora-token-server-voicebook.fly.dev/access_token'; 
 
-    try {
-        const response = await fetch(`${TOKEN_SERVER_URL}?channelName=${channelName}&uid=${uid}`);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Failed to fetch Agora token:', errorText);
-            throw new Error(`Token server responded with ${response.status}`);
+        try {
+            const response = await fetch(`${TOKEN_SERVER_URL}?channelName=${channelName}&uid=${uid}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Failed to fetch Agora token:', errorText);
+                throw new Error(`Token server responded with ${response.status}`);
+            }
+            const data = await response.json();
+            if (!data.token) {
+                throw new Error('Token key not found in server response');
+            }
+            return data.token;
+        } catch (error) {
+            console.error("Could not fetch Agora token. Please ensure your token server is deployed and the URL is correct.", error);
+            return null; // Return null on failure, which will prevent joining the call.
         }
-        const data = await response.json();
-        if (!data.token) {
-            throw new Error('Token key not found in server response');
-        }
-        return data.token;
-    } catch (error) {
-        console.error("Could not fetch Agora token. Please ensure your token server is deployed and the URL is correct.", error);
-        return null; // Return null on failure, which will prevent joining the call.
-    }
-  },
+    },
 };

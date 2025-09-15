@@ -70,7 +70,6 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
         }
     }, [isCaller, call?.status, callId]);
 
-    // Fix: Add useCallback to the import from 'react'
     const handleHangUp = useCallback(() => {
         if (callStatusRef.current === 'ringing' && !isCaller) {
              firebaseService.updateCallStatus(callId, 'declined');

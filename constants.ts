@@ -8,7 +8,7 @@ export const IMAGE_GENERATION_COST = 60;
 export const SPONSOR_CPM_BDT = 300; // Cost Per 1000 Impressions in BDT
 export const REWARD_AD_COIN_VALUE = 5;
 // IMPORTANT: Replace with your actual Agora App ID
-export const AGORA_APP_ID = '5ecd1b9370d04ddc90727cee0b57be24'; 
+export const AGORA_APP_ID = '0063ad751cdb46bcbf9feb29f639be75'; 
 
 
 export const REEL_TEXT_FONTS = [

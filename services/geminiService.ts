@@ -501,9 +501,10 @@ export const geminiService = {
     },
     
     // --- 1-on-1 Calls ---
-    getAgoraToken: (channelName: string, uid: string | number) => firebaseService.getAgoraToken(channelName, uid),
     createCall: (caller, callee, chatId, type) => firebaseService.createCall(caller, callee, chatId, type),
     listenForIncomingCalls: (userId, callback) => firebaseService.listenForIncomingCalls(userId, callback),
     listenToCall: (callId, callback) => firebaseService.listenToCall(callId, callback),
     updateCallStatus: (callId, status) => firebaseService.updateCallStatus(callId, status),
+
+    getAgoraToken: (channelName: string, uid: string | number) => firebaseService.getAgoraToken(channelName, uid),
 };
