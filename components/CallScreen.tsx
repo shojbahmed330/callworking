@@ -20,6 +20,8 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     const [call, setCall] = useState<Call | null>(null);
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
+    const [isMicAvailable, setIsMicAvailable] = useState(true);
+    const [isCamAvailable, setIsCamAvailable] = useState(true);
     const [callDuration, setCallDuration] = useState(0);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
@@ -38,7 +40,14 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             setCall(liveCall);
             callStatusRef.current = liveCall?.status || null;
             if (!liveCall || ['ended', 'declined', 'missed'].includes(liveCall.status)) {
-                setTimeout(onGoBack, 2000);
+                // Add a small delay to allow the user to see the final status message
+                setTimeout(() => {
+                    // This check prevents a crash if the component is already unmounted
+                    // when the timeout fires, which can happen in rapid state changes.
+                    if (callStatusRef.current !== 'active' && callStatusRef.current !== 'ringing') {
+                        onGoBack();
+                    }
+                }, 2000);
             }
         });
         return unsubscribe;
@@ -75,7 +84,6 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     useEffect(() => {
         let renewalInterval: NodeJS.Timeout | null = null;
         if (call?.status === 'active') {
-            // Renew token every 45 seconds (well before typical 1-minute expiration)
             renewalInterval = setInterval(async () => {
                 try {
                     console.log("Renewing Agora token...");
@@ -129,50 +137,60 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 setRemoteUser(null);
                 firebaseService.updateCallStatus(callId, 'ended');
             });
+            
+            // Join the Agora channel first
+            const uid = parseInt(currentUser.id, 36) % 10000000;
+            const token = await geminiService.getAgoraToken(callId, uid);
+            if (!token) {
+                throw new Error("Failed to retrieve Agora token. The call cannot proceed.");
+            }
+            await client.join(AGORA_APP_ID, callId, token, uid);
 
+            // **Graceful Media Initialization**
+            // Now, try to get local media, but catch errors if devices are not found.
             try {
-                const uid = parseInt(currentUser.id, 36) % 10000000;
-                const token = await geminiService.getAgoraToken(callId, uid);
-                if (!token) {
-                    throw new Error("Failed to retrieve Agora token. The call cannot proceed.");
-                }
-
-                await client.join(AGORA_APP_ID, callId, token, uid);
-
-                const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-                localAudioTrack.current = audioTrack;
-
-                let tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [audioTrack];
+                // @FIX: The original code passed an invalid constraints object to Agora.
+                // This has been refactored to create tracks conditionally based on the call type,
+                // which is the correct way to handle audio-only vs video calls.
+                const tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [];
+                
                 if (callType === 'video') {
-                    try {
-                        const videoTrack = await AgoraRTC.createCameraVideoTrack();
-                        localVideoTrack.current = videoTrack;
-                        tracksToPublish.push(videoTrack);
-                        if (localVideoRef.current) {
-                            videoTrack.play(localVideoRef.current);
-                        }
-                    } catch (videoError: any) {
-                        console.error("Could not get camera track:", videoError);
-                        // Don't throw, just disable camera and continue with audio
-                        setIsCameraOff(true); 
+                    const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                    localAudioTrack.current = audioTrack;
+                    localVideoTrack.current = videoTrack;
+                    setLocalVideoTrackState(videoTrack);
+                    tracksToPublish.push(audioTrack, videoTrack);
+                    if (localVideoRef.current) {
+                        videoTrack.play(localVideoRef.current);
                     }
+                } else { // audio call
+                    const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                    localAudioTrack.current = audioTrack;
+                    tracksToPublish.push(audioTrack);
                 }
-                await client.publish(tracksToPublish);
+
+                if (tracksToPublish.length > 0) {
+                    await client.publish(tracksToPublish);
+                }
+                
             } catch (error: any) {
-                 console.error("Agora setup failed:", error);
-                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
-                    onSetTtsMessage("Could not find a microphone. Please check your devices and permissions.");
-                } else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') {
-                    onSetTtsMessage("Microphone access was denied. Please allow access in your browser settings.");
-                } else {
-                    onSetTtsMessage(`Could not start the call: ${error.message || 'Unknown error'}`);
-                }
-                handleHangUp(); // End the call gracefully
+                 console.warn("Could not get local media tracks:", error);
+                 onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
+                 // Update UI to show devices are unavailable
+                 setIsMicAvailable(false);
+                 setIsCamAvailable(false);
+                 setIsMuted(true);
+                 setIsCameraOff(true);
+                 // The call continues in listen-only mode.
             }
         };
 
         if (call?.type) {
-             setupAgora(call.type);
+             setupAgora(call.type).catch(error => {
+                console.error("Agora setup failed:", error);
+                onSetTtsMessage(`Could not start the call: ${error.message || 'Unknown error'}`);
+                handleHangUp(); // End the call gracefully
+             });
         }
 
         return () => {
@@ -185,12 +203,14 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     }, [call?.type, callId, currentUser.id, handleHangUp, onSetTtsMessage]);
     
     const toggleMute = () => {
+        if (!isMicAvailable) return;
         const muted = !isMuted;
         localAudioTrack.current?.setMuted(muted);
         setIsMuted(muted);
     };
 
     const toggleCamera = () => {
+        if (!isCamAvailable) return;
         const cameraOff = !isCameraOff;
         localVideoTrack.current?.setEnabled(!cameraOff);
         setIsCameraOff(cameraOff);
@@ -230,7 +250,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                         <div ref={remoteVideoRef} className="w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center">
                             {!remoteUser?.hasVideo && <img src={peerUser.avatarUrl} className="w-48 h-48 object-cover rounded-full opacity-50"/>}
                         </div>
-                        <div ref={localVideoRef} className={`absolute bottom-4 right-4 w-24 h-32 bg-slate-800 rounded-lg overflow-hidden border-2 border-slate-600 ${isCameraOff ? 'hidden' : ''} transform scale-x-[-1]`}/>
+                        <div ref={localVideoRef} className={`absolute bottom-4 right-4 w-24 h-32 bg-slate-800 rounded-lg overflow-hidden border-2 border-slate-600 ${isCameraOff || !isCamAvailable ? 'hidden' : ''} transform scale-x-[-1]`}/>
                     </>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full">
@@ -240,12 +260,20 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             </div>
 
             <div className="flex items-center justify-center gap-6">
-                <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-rose-600' : 'bg-slate-700'}`}>
-                    <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
+                <button 
+                    onClick={toggleMute} 
+                    disabled={!isMicAvailable}
+                    className={`p-4 rounded-full transition-colors ${!isMicAvailable ? 'bg-red-600/50 cursor-not-allowed' : isMuted ? 'bg-rose-600' : 'bg-slate-700'}`}
+                >
+                    <Icon name={!isMicAvailable || isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
                 </button>
                 {isVideoCall && (
-                    <button onClick={toggleCamera} className={`p-4 rounded-full transition-colors ${isCameraOff ? 'bg-rose-600' : 'bg-slate-700'}`}>
-                        <Icon name={isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-6 h-6" />
+                    <button 
+                        onClick={toggleCamera} 
+                        disabled={!isCamAvailable}
+                        className={`p-4 rounded-full transition-colors ${!isCamAvailable ? 'bg-red-600/50 cursor-not-allowed' : isCameraOff ? 'bg-rose-600' : 'bg-slate-700'}`}
+                    >
+                        <Icon name={!isCamAvailable || isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-6 h-6" />
                     </button>
                 )}
                 <button onClick={handleHangUp} className="p-4 rounded-full bg-red-600">

@@ -13,6 +13,8 @@ interface ChatManagerProps {
   onMinimizeToggle: (peerId: string) => void;
   setIsChatRecording: (isRecording: boolean) => void;
   onNavigate: (view: AppView, props?: any) => void;
+  // FIX: Add missing onSetTtsMessage prop to fix type errors.
+  onSetTtsMessage: (message: string) => void;
 }
 
 const ChatManager: React.FC<ChatManagerProps> = ({
@@ -25,6 +27,7 @@ const ChatManager: React.FC<ChatManagerProps> = ({
   onMinimizeToggle,
   setIsChatRecording,
   onNavigate,
+  onSetTtsMessage,
 }) => {
   const friendsMap = useMemo(() => {
     const map = new Map<string, User>();
@@ -58,6 +61,7 @@ const ChatManager: React.FC<ChatManagerProps> = ({
             unreadCount={chatUnreadCounts[firebaseService.getChatId(currentUser.id, peer.id)] || 0}
             setIsChatRecording={setIsChatRecording}
             onNavigate={onNavigate}
+            onSetTtsMessage={onSetTtsMessage}
           />
         ))}
         {openChats.map(peer => (
@@ -72,6 +76,7 @@ const ChatManager: React.FC<ChatManagerProps> = ({
             unreadCount={0}
             setIsChatRecording={setIsChatRecording}
             onNavigate={onNavigate}
+            onSetTtsMessage={onSetTtsMessage}
           />
         ))}
       </div>

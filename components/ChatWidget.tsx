@@ -15,6 +15,7 @@ interface ChatWidgetProps {
   unreadCount: number;
   setIsChatRecording: (isRecording: boolean) => void;
   onNavigate: (view: AppView, props?: any) => void;
+  onSetTtsMessage: (message: string) => void; // Added for showing errors
 }
 
 enum RecordingState { IDLE, RECORDING, PREVIEW }
@@ -23,6 +24,19 @@ const EMOJI_REACTIONS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
 const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (message: Message) => void; onReact: (messageId: string, emoji: string) => void; onUnsend: (messageId: string) => void; }> = ({ message, isMe, onReply, onReact, onUnsend }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [isActionMenuOpen, setActionMenuOpen] = useState(false);
+    const actionMenuRef = useRef<HTMLDivElement>(null);
+
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+                setActionMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
 
     const renderContent = () => {
         if (message.isDeleted) {
@@ -48,11 +62,21 @@ const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (messa
             <div 
                 className="flex items-center gap-2"
                 onMouseEnter={() => setIsHovered(true)} 
-                onMouseLeave={() => setIsHovered(false)}
+                onMouseLeave={() => { setIsHovered(false); setActionMenuOpen(false);}}
             >
-                 <div className={`flex-shrink-0 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                 <div className={`relative flex-shrink-0 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
                     <button onClick={() => onReply(message)} className="p-1 rounded-full hover:bg-slate-600"><Icon name="reply" className="w-4 h-4 text-slate-400"/></button>
-                    <button onClick={() => setActionMenuOpen(true)} className="p-1 rounded-full hover:bg-slate-600"><Icon name="dots-horizontal" className="w-4 h-4 text-slate-400"/></button>
+                    <button onClick={() => setActionMenuOpen(p => !p)} className="p-1 rounded-full hover:bg-slate-600"><Icon name="dots-horizontal" className="w-4 h-4 text-slate-400"/></button>
+                     {isActionMenuOpen && (
+                         <div ref={actionMenuRef} className="absolute bottom-full mb-1 bg-slate-800 rounded-full p-1 flex items-center gap-1 shadow-lg border border-slate-600 z-10">
+                            {EMOJI_REACTIONS.map(emoji => (
+                                <button key={emoji} onClick={() => { onReact(message.id, emoji); setActionMenuOpen(false); }} className="text-lg p-1 rounded-full hover:bg-slate-700 transition-transform hover:scale-125">
+                                    {emoji}
+                                </button>
+                            ))}
+                             {isMe && !message.isDeleted && <button onClick={() => { onUnsend(message.id); setActionMenuOpen(false); }} className="p-2 rounded-full hover:bg-slate-700"><Icon name="trash" className="w-4 h-4 text-red-400"/></button>}
+                        </div>
+                    )}
                  </div>
 
                  <div className={`relative px-3 py-2 rounded-2xl ${isMe ? 'bg-rose-600 text-white' : 'bg-slate-600 text-slate-100'}`}>
@@ -64,25 +88,12 @@ const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (messa
                     )}
                  </div>
             </div>
-
-            {isActionMenuOpen && (
-                 <div className="relative">
-                    <div className="absolute bottom-0 left-0 bg-slate-800 rounded-full p-1 flex items-center gap-1 shadow-lg border border-slate-600">
-                        {EMOJI_REACTIONS.map(emoji => (
-                            <button key={emoji} onClick={() => { onReact(message.id, emoji); setActionMenuOpen(false); }} className="text-lg p-1 rounded-full hover:bg-slate-700 transition-transform hover:scale-125">
-                                {emoji}
-                            </button>
-                        ))}
-                         {isMe && !message.isDeleted && <button onClick={() => { onUnsend(message.id); setActionMenuOpen(false); }} className="p-2 rounded-full hover:bg-slate-700"><Icon name="trash" className="w-4 h-4 text-red-400"/></button>}
-                    </div>
-                 </div>
-            )}
         </div>
     );
 };
 
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose, onMinimize, onHeaderClick, isMinimized, unreadCount, setIsChatRecording, onNavigate }) => {
+const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose, onMinimize, onHeaderClick, isMinimized, unreadCount, setIsChatRecording, onNavigate, onSetTtsMessage }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -200,22 +211,39 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
     }
   };
   
-  const handleInitiateCall = async (type: 'audio' | 'video') => {
-    try {
-        // Create a call document in Firestore
-        const callId = await firebaseService.createCall(currentUser, peerUser, chatId, type);
-        
-        // Navigate the caller to the call screen
-        onNavigate(AppView.CALL_SCREEN, {
-            callId,
-            peerUser,
-            isCaller: true,
-        });
-    } catch (error) {
-        console.error(`Failed to create ${type} call:`, error);
-        // Optionally show an error to the user
-    }
-  };
+    const handleInitiateCall = async (type: 'audio' | 'video') => {
+        const constraints = {
+            audio: true,
+            video: type === 'video',
+        };
+
+        try {
+            // 1. Proactively request permissions. This is the key change.
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            // We got permission! Stop the tracks immediately, as Agora will manage its own.
+            stream.getTracks().forEach(track => track.stop());
+
+            // 2. If permission is granted, proceed to create the call.
+            const callId = await firebaseService.createCall(currentUser, peerUser, chatId, type);
+            
+            // 3. Navigate the caller to the call screen.
+            onNavigate(AppView.CALL_SCREEN, {
+                callId,
+                peerUser,
+                isCaller: true,
+            });
+        } catch (error: any) {
+            // 4. If permission is denied or fails, inform the user and stop.
+            console.error(`Failed to get media permissions for ${type} call:`, error);
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                 onSetTtsMessage("Call failed: Microphone/camera permission was denied. Please allow access in your browser settings.");
+            } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                 onSetTtsMessage("Call failed: No microphone or camera was found. Please check your devices.");
+            } else {
+                 onSetTtsMessage("Could not start call. An unknown error occurred.");
+            }
+        }
+    };
 
   if (isMinimized) {
     return (
