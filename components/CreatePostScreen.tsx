@@ -189,7 +189,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     };
 
     const renderMainView = () => (
-        <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-4xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
+        <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-6xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
             <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                 <h2 className="text-xl font-bold text-slate-100">Create post</h2>
                 <button onClick={onGoBack} className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
@@ -223,9 +223,9 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                                 <Icon name="face-smile" className="w-6 h-6" />
                             </button>
                             {isEmojiPickerOpen && (
-                                <div className="absolute bottom-full right-0 mb-2 bg-slate-900 border border-slate-700 p-2 rounded-lg grid grid-cols-5 gap-1 z-50 shadow-2xl">
+                                <div className="absolute bottom-full right-0 mb-2 w-64 bg-slate-900 border border-slate-700 p-2 rounded-lg grid grid-cols-5 gap-2 z-50 shadow-2xl">
                                     {EMOJI_PICKER_LIST.map(emoji => (
-                                        <button key={emoji} onClick={() => setCaption(c => c + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700">{emoji}</button>
+                                        <button key={emoji} onClick={() => setCaption(c => c + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700 aspect-square flex items-center justify-center">{emoji}</button>
                                     ))}
                                 </div>
                             )}
@@ -281,7 +281,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
          const filteredFeelings = FEELINGS.filter(f => f.text.toLowerCase().includes(search.toLowerCase()));
 
         return (
-            <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-4xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
+            <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-6xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
                 <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                     <button onClick={() => setSubView('main')} className="absolute top-1/2 -translate-y-1/2 left-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
                         <Icon name="back" className="w-5 h-5 text-slate-300" />
