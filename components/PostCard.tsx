@@ -40,10 +40,6 @@ const REACTION_COLORS: { [key: string]: string } = {
 };
 
 export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onStartComment, onSharePost, onAdClick, onDeletePost, onOpenPhotoViewer, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
-  // FINAL FIX: Add a guard clause for the post and its author.
-  // This is the root cause of the crash. If a post from a deleted user
-  // is fetched, `post.author` can be null, causing the entire app to crash
-  // wherever this central component is used. This check makes the app resilient.
   if (!post || !post.author) {
     return null;
   }
@@ -389,11 +385,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                   <p className="font-bold text-lime-200 text-lg transition-colors group-hover:text-lime-400">
                     {post.isSponsored ? post.sponsorName : post.author.name}
                   </p>
-                  {post.feeling && (
-                    <p className="font-normal text-lime-300/90 text-lg ml-1.5">
-                        is feeling {post.feeling.emoji} {post.feeling.text}
-                    </p>
-                  )}
+                  {post.feeling && <span className="font-normal text-lime-300/90 text-lg ml-1.5"> is feeling {post.feeling.emoji} {post.feeling.text}</span>}
                   {groupRole && <GroupRoleBadge role={groupRole} />}
               </div>
               <p className="text-lime-500 text-sm">

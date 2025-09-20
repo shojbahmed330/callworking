@@ -33,7 +33,8 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
 
     const localVideoRef = useRef<HTMLDivElement>(null);
     const remoteVideoRef = useRef<HTMLDivElement>(null);
-    const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    // Fix: Use 'number' for setInterval return type in browser environments instead of 'NodeJS.Timeout'.
+    const timerIntervalRef = useRef<number | null>(null);
     const callStatusRef = useRef<Call['status'] | null>(null);
 
     // Call state listener
@@ -58,7 +59,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     // Timer effect
     useEffect(() => {
         if (call?.status === 'active' && !timerIntervalRef.current) {
-            timerIntervalRef.current = setInterval(() => {
+            timerIntervalRef.current = window.setInterval(() => {
                 setCallDuration(d => d + 1);
             }, 1000);
         } else if (call?.status !== 'active' && timerIntervalRef.current) {
@@ -73,7 +74,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     // Ringing timeout for caller
     useEffect(() => {
         if (isCaller && call?.status === 'ringing') {
-            const timeout = setTimeout(() => {
+            const timeout = window.setTimeout(() => {
                 if (callStatusRef.current === 'ringing') {
                     firebaseService.updateCallStatus(callId, 'missed');
                 }
@@ -84,9 +85,10 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
 
     // Token Renewal Effect to prevent call drops
     useEffect(() => {
-        let renewalInterval: NodeJS.Timeout | null = null;
+        // Fix: Use 'number' for setInterval return type in browser environments instead of 'NodeJS.Timeout'.
+        let renewalInterval: number | null = null;
         if (call?.status === 'active') {
-            renewalInterval = setInterval(async () => {
+            renewalInterval = window.setInterval(async () => {
                 try {
                     console.log("Renewing Agora token...");
                     const uid = parseInt(currentUser.id, 36) % 10000000;
