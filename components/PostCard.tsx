@@ -40,10 +40,6 @@ const REACTION_COLORS: { [key: string]: string } = {
 };
 
 export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onStartComment, onSharePost, onAdClick, onDeletePost, onOpenPhotoViewer, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
-  // FINAL FIX: Add a guard clause for the post and its author.
-  // This is the root cause of the crash. If a post from a deleted user
-  // is fetched, `post.author` can be null, causing the entire app to crash
-  // wherever this central component is used. This check makes the app resilient.
   if (!post || !post.author) {
     return null;
   }
@@ -159,7 +155,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
   };
 
   const handleView = () => {
-      onViewPost(post.id);
+      if (post.audioUrl) {
+        onPlayPause();
+      } else {
+        onViewPost(post.id);
+      }
   }
 
   const handleAuthor = (e: React.MouseEvent) => {
@@ -285,17 +285,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
   const renderAudioPlayer = () => {
     if (post.audioUrl && post.audioUrl !== '#') {
       return (
-        <div className="relative h-24 bg-slate-800 rounded-xl overflow-hidden group/waveform mb-4">
+        <div className="relative h-24 bg-slate-800 rounded-xl overflow-hidden group/waveform mb-4 cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
             <audio ref={audioRef} src={post.audioUrl} onEnded={onPlayPause} />
             <Waveform isPlaying={isPlaying && isActive} />
             <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 group-hover/waveform:opacity-100 transition-opacity duration-300">
             <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onPlayPause();
-                }}
+                aria-label={isPlaying && isActive ? "Pause post" : "Play post"}
                 className="w-16 h-16 rounded-full bg-lime-600/70 text-black flex items-center justify-center transform scale-75 group-hover/waveform:scale-100 transition-transform duration-300 ease-in-out hover:bg-lime-500"
-                aria-label={isPlaying ? "Pause post" : "Play post"}
             >
                 <Icon name={isPlaying && isActive ? 'pause' : 'play'} className="w-8 h-8" />
             </button>
@@ -389,11 +385,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                   <p className="font-bold text-lime-200 text-lg transition-colors group-hover:text-lime-400">
                     {post.isSponsored ? post.sponsorName : post.author.name}
                   </p>
-                  {post.feeling && (
-                    <p className="font-normal text-lime-300/90 text-lg ml-1.5">
-                        is feeling {post.feeling.emoji} {post.feeling.text}
-                    </p>
-                  )}
+                  {post.feeling && <p className="font-normal text-lime-300/90 text-lg ml-1.5"> is feeling {post.feeling.emoji} {post.feeling.text}</p>}
                   {groupRole && <GroupRoleBadge role={groupRole} />}
               </div>
               <p className="text-lime-500 text-sm">
@@ -446,7 +438,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                   )}
                   <span className="text-sm text-lime-500 ml-2 hover:underline">{reactionCount}</span>
               </button>
-              <button onClick={handleView} className="text-sm text-lime-500 hover:underline">{post.commentCount || 0} comments</button>
+              <button onClick={() => onViewPost(post.id)} className="text-sm text-lime-500 hover:underline">{post.commentCount || 0} comments</button>
           </div>
         )}
 

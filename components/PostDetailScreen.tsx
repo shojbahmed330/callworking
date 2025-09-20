@@ -3,7 +3,6 @@ import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
 import CommentCard from './CommentCard';
 import { geminiService } from '../services/geminiService';
-// @FIXML-FIX-46: Import firebaseService
 import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';
 import { getTtsPrompt } from '../constants';
@@ -26,13 +25,13 @@ interface PostDetailScreenProps {
   scrollState: ScrollState;
   onCommandProcessed: () => void;
   onGoBack: () => void;
-  // @FIXML-FIX-185: Add onStartComment to props interface
   onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
 }
 
 const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onReactToPost, onReactToComment, onOpenProfile, onSharePost, onOpenPhotoViewer, scrollState, onCommandProcessed, onGoBack, onPostComment, onEditComment, onDeleteComment, onStartComment }) => {
   const [post, setPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
@@ -50,19 +49,16 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
     const unsubscribe = firebaseService.listenToPost(postId, (livePost) => {
         if (livePost) {
             setPost(livePost);
-            // Only call setIsLoading(false) ONCE after the initial data has been loaded.
-            // This prevents re-render loops caused by toggling state on every listener update.
             if (isInitialLoad.current) { 
                 onSetTtsMessage(getTtsPrompt('post_details_loaded', language));
-                setIsLoading(false); // Set loading to false only on the first fire
+                setIsLoading(false);
                 isInitialLoad.current = false;
             }
         } else {
             onSetTtsMessage("This post could not be found.");
-            setIsLoading(false); // Also set loading false if post is not found
+            setIsLoading(false);
         }
 
-        // Highlight new comment logic
         if (newlyAddedCommentId) {
             setTimeout(() => {
                 newCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -191,19 +187,18 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
 
   return (
     <div ref={scrollContainerRef} className="h-full w-full overflow-y-auto">
-      <div className="max-w-lg mx-auto p-4 sm:p-8 flex flex-col gap-6">
+      <div className="max-w-lg md:max-w-2xl mx-auto p-4 sm:p-8 flex flex-col gap-6">
         <PostCard
           post={post}
           currentUser={currentUser}
           isActive={true}
-          isPlaying={false}
-          onPlayPause={() => {}}
+          isPlaying={isPlaying}
+          onPlayPause={() => setIsPlaying(p => !p)}
           onReact={onReactToPost}
           onViewPost={() => {}}
           onAuthorClick={onOpenProfile}
           onSharePost={onSharePost}
           onOpenPhotoViewer={onOpenPhotoViewer}
-// @FIXML-FIX-185: Pass onStartComment prop to PostCard
           onStartComment={onStartComment}
         />
 
@@ -221,7 +216,6 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
                                 onAuthorClick={onOpenProfile}
                                 onReply={setReplyingTo}
                                 onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
-// @FIXML-FIX-212: Pass onEdit and onDelete to CommentCard
                                 onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
                                 onDelete={(commentId) => onDeleteComment(post.id, commentId)}
                             />
@@ -234,7 +228,6 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
                                             comment={reply}
                                             currentUser={currentUser}
                                             isPlaying={playingCommentId === reply.id}
-// @FIXML-FIX-224: Pass isReply to CommentCard
                                             isReply={true}
                                             onPlayPause={() => handlePlayComment(reply)}
                                             onAuthorClick={onOpenProfile}
