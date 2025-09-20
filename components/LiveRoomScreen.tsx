@@ -39,12 +39,22 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const [isMuted, setIsMuted] = useState(false);
     
+    // Refs to hold the latest versions of function props to prevent re-running effects
+    const onGoBackRef = useRef(onGoBack);
+    const onSetTtsMessageRef = useRef(onSetTtsMessage);
+
+    // Effect to keep refs updated on every render without causing dependency changes
+    useEffect(() => {
+        onGoBackRef.current = onGoBack;
+        onSetTtsMessageRef.current = onSetTtsMessage;
+    });
+
     // Effect 1: Handles joining and leaving the Agora channel.
     useEffect(() => {
         if (!AGORA_APP_ID) {
-            onSetTtsMessage("Agora App ID is not configured. Real-time audio will not work.");
+            onSetTtsMessageRef.current("Agora App ID is not configured. Real-time audio will not work.");
             console.error("Agora App ID is not configured in constants.ts");
-            onGoBack();
+            onGoBackRef.current();
             return;
         }
 
@@ -58,13 +68,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             }
         };
 
-        const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
-            // No need to manually update remoteUsers state, Agora SDK handles this
-        };
-        
-        const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
-            // No need to manually update remoteUsers state, Agora SDK handles this
-        };
+        const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {};
+        const handleUserLeft = (user: IAgoraRTCRemoteUser) => {};
 
         const handleVolumeIndicator = (volumes: any[]) => {
             if (volumes.length === 0) {
@@ -91,8 +96,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             const token = await geminiService.getAgoraToken(roomId, uid);
             if (!token) {
                 console.error("Failed to retrieve Agora token. Cannot join room.");
-                onSetTtsMessage("Could not join the room due to a connection issue.");
-                onGoBack();
+                onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
+                onGoBackRef.current();
                 return;
             }
 
@@ -115,7 +120,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             agoraClient.current?.leave();
             geminiService.leaveLiveAudioRoom(currentUser.id, roomId);
         };
-    }, [roomId, currentUser.id, onGoBack, onSetTtsMessage]);
+    }, [roomId, currentUser.id]); // Dependencies are stable, so this runs only once.
     
     // Effect 2: Subscribes to real-time Firestore updates for the room state
     useEffect(() => {
@@ -124,14 +129,14 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             if (roomDetails) {
                 setRoom(roomDetails);
             } else {
-                onSetTtsMessage("The room has ended.");
-                onGoBack();
+                onSetTtsMessageRef.current("The room has ended.");
+                onGoBackRef.current();
             }
             setIsLoading(false);
         });
 
         return () => unsubscribe();
-    }, [roomId, onGoBack, onSetTtsMessage]);
+    }, [roomId]); // Dependency is stable, so this runs only once.
     
     // Effect 3: Reacts to speaker status changes from Firestore to publish/unpublish audio.
     useEffect(() => {
@@ -151,7 +156,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     setIsMuted(false);
                 } catch (error) {
                     console.error("Error creating/publishing audio track:", error);
-                    onSetTtsMessage("Could not activate microphone.");
+                    onSetTtsMessageRef.current("Could not activate microphone.");
                 }
             }
             // Demotion: Speaker -> Listener
@@ -171,7 +176,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
         handleRoleChange();
 
-    }, [room, currentUser.id, onSetTtsMessage]);
+    }, [room, currentUser.id]); // Runs only when room state or user ID changes.
 
     const handleLeave = () => {
         onGoBack();
