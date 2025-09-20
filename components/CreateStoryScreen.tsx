@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Story, MusicTrack, StoryTextStyle, StoryPrivacy, AppView } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -145,25 +146,30 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
         setIsPublishing(true);
         onSetTtsMessage("Sharing your story...");
 
-        const storyType = editorMode === 'text' 
-            ? 'text' 
-            : mediaFile?.type.startsWith('video') || mediaPreview?.endsWith('.mp4')
-            ? 'video' 
-            : 'image';
-            
-        const newStory = await geminiService.createStory({
-            author: currentUser,
-            type: storyType,
-            text: editorMode === 'text' ? text : undefined,
-            textStyle: editorMode === 'text' ? textStyle : undefined,
-            contentUrl: editorMode === 'media' && !mediaFile ? mediaPreview! : undefined,
-            music: selectedMusic || undefined,
-            privacy: privacy
-        }, editorMode === 'media' ? mediaFile : null);
+        try {
+            const storyType = editorMode === 'text' 
+                ? 'text' 
+                : mediaFile?.type.startsWith('video') || mediaPreview?.endsWith('.mp4')
+                ? 'video' 
+                : 'image';
+                
+            const newStory = await geminiService.createStory({
+                author: currentUser,
+                type: storyType,
+                text: editorMode === 'text' ? text : undefined,
+                textStyle: editorMode === 'text' ? textStyle : undefined,
+                contentUrl: editorMode === 'media' && !mediaFile ? mediaPreview! : undefined,
+                music: selectedMusic || undefined,
+                privacy: privacy
+            }, editorMode === 'media' ? mediaFile : null);
 
-        if (newStory) {
-            onStoryCreated(newStory);
-        } else {
+            if (newStory) {
+                onStoryCreated(newStory);
+            } else {
+                throw new Error("Story creation service returned no data.");
+            }
+        } catch (error) {
+            console.error("Failed to publish story:", error);
             onSetTtsMessage("Failed to share story. Please try again.");
             setIsPublishing(false);
         }
