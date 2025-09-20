@@ -422,6 +422,11 @@ export const geminiService = {
     inviteToSpeakInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.inviteToSpeakInAudioRoom(hostId, userId, roomId),
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
     sendAudioRoomMessage: (roomId: string, sender: User, text: string) => firebaseService.sendAudioRoomMessage(roomId, sender, text),
+    kickUserFromRoom: (roomId: string, managerId: string, targetUserId: string) => firebaseService.kickUserFromRoom(roomId, managerId, targetUserId),
+    promoteToCoHost: (roomId: string, hostId: string, targetUserId: string) => firebaseService.promoteToCoHost(roomId, hostId, targetUserId),
+    demoteFromCoHost: (roomId: string, hostId: string, targetUserId: string) => firebaseService.demoteFromCoHost(roomId, hostId, targetUserId),
+    setRemoteMuteStatus: (roomId: string, managerId: string, targetUserId: string, shouldMute: boolean) => firebaseService.setRemoteMuteStatus(roomId, managerId, targetUserId, shouldMute),
+    updateRoomTheme: (roomId: string, hostId: string, theme: string) => firebaseService.updateRoomTheme(roomId, hostId, theme),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),

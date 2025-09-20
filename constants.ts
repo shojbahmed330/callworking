@@ -1,4 +1,5 @@
 
+
 import { FriendshipStatus, type User, type Post, type Message, type Comment, ChatTheme, AdminUser, LiveAudioRoom, LiveVideoRoom, Campaign, Group, Event, GroupChat, GroupCategory, MusicTrack, Story, StoryTextStyle } from './types';
 import { t, Language } from './i18n';
 
@@ -85,6 +86,14 @@ export const CHAT_THEMES: Record<ChatTheme, { name: string, bgGradient: string; 
         text: 'text-black',
         headerText: 'text-gray-800',
     }
+};
+
+export const ROOM_THEMES: Record<string, { name: string, bgClass: string }> = {
+  default: { name: 'Default', bgClass: 'bg-gradient-to-b from-slate-900 to-black' },
+  nebula: { name: 'Nebula', bgClass: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900' },
+  forest: { name: 'Forest', bgClass: 'bg-gradient-to-b from-emerald-900 to-green-900' },
+  sunset: { name: 'Sunset', bgClass: 'bg-gradient-to-tr from-orange-700 via-rose-800 to-indigo-900' },
+  ocean: { name: 'Ocean', bgClass: 'bg-gradient-to-b from-cyan-800 to-blue-900' },
 };
 
 export const DEFAULT_AVATARS: string[] = [

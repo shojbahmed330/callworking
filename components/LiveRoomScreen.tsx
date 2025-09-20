@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppView, LiveAudioRoom, User, RoomMessage, Author } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
-import { AGORA_APP_ID } from '../constants';
+import { AGORA_APP_ID, ROOM_THEMES } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 
@@ -14,16 +14,17 @@ interface LiveRoomScreenProps {
   onSetTtsMessage: (message: string) => void;
 }
 
-const Avatar: React.FC<{ user: User; isHost?: boolean; isSpeaking?: boolean; children?: React.ReactNode }> = ({ user, isHost, isSpeaking, children }) => (
+const Avatar: React.FC<{ user: User; isHost?: boolean; isCoHost?: boolean; isSpeaking?: boolean; children?: React.ReactNode, onClick?: (event: React.MouseEvent) => void }> = ({ user, isHost, isCoHost, isSpeaking, children, onClick }) => (
     <div className="relative flex flex-col items-center gap-2 text-center w-24">
-        <div className="relative">
+        <button onClick={onClick} disabled={!onClick} className="relative group">
             <img 
                 src={user.avatarUrl}
                 alt={user.name}
-                className={`w-20 h-20 rounded-full border-4 transition-all duration-300 ${isSpeaking ? 'border-green-400 ring-4 ring-green-500/50' : 'border-slate-600'}`}
+                className={`w-20 h-20 rounded-full border-4 transition-all duration-300 ${isSpeaking ? 'border-green-400 ring-4 ring-green-500/50' : 'border-slate-600'} ${onClick ? 'group-hover:ring-4 group-hover:ring-sky-500/50' : ''}`}
             />
-            {isHost && <div className="absolute -bottom-2 -right-1 text-2xl">👑</div>}
-        </div>
+            {isHost && <div className="absolute -bottom-2 -right-1 text-2xl" title="Host">👑</div>}
+            {isCoHost && !isHost && <div className="absolute -bottom-2 -right-1 text-xl bg-slate-700 p-1 rounded-full" title="Co-host">🛡️</div>}
+        </button>
         <p className="font-semibold text-slate-200 truncate w-full">{user.name}</p>
         {children}
     </div>
@@ -46,11 +47,14 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
     const [newMessage, setNewMessage] = useState('');
     const [isChatVisible, setIsChatVisible] = useState(false);
+    const [participantMenu, setParticipantMenu] = useState<{ user: User; event: React.MouseEvent } | null>(null);
+    const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const [isMuted, setIsMuted] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const participantMenuRef = useRef<HTMLDivElement>(null);
     
     const onGoBackRef = useRef(onGoBack);
     const onSetTtsMessageRef = useRef(onSetTtsMessage);
@@ -59,6 +63,16 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         onGoBackRef.current = onGoBack;
         onSetTtsMessageRef.current = onSetTtsMessage;
     });
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (participantMenuRef.current && !participantMenuRef.current.contains(event.target as Node)) {
+                setParticipantMenu(null);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     useEffect(() => {
         if (!AGORA_APP_ID) {
@@ -185,7 +199,17 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
         handleRoleChange();
 
-    }, [room, currentUser.id]);
+    }, [room?.speakers, currentUser.id]);
+
+    useEffect(() => {
+        if (room && localAudioTrack.current) {
+            const amIMutedByHost = room.mutedByHostIds?.includes(currentUser.id);
+            if (amIMutedByHost && !isMuted) {
+                localAudioTrack.current.setMuted(true);
+                setIsMuted(true);
+            }
+        }
+    }, [room?.mutedByHostIds, currentUser.id, isMuted]);
 
     const handleLeave = () => {
         onGoBack();
@@ -199,6 +223,11 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     
     const toggleMute = () => {
         if (localAudioTrack.current) {
+            const amIMutedByHost = room?.mutedByHostIds?.includes(currentUser.id);
+            if(amIMutedByHost) {
+                onSetTtsMessage("The host has muted you. You cannot unmute yourself.");
+                return;
+            }
             const willBeMuted = !isMuted;
             localAudioTrack.current.setMuted(willBeMuted);
             setIsMuted(willBeMuted);
@@ -213,15 +242,20 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     };
 
     const handleRaiseHand = () => geminiService.raiseHandInAudioRoom(currentUser.id, roomId);
-    const handleInviteToSpeak = (userId: string) => geminiService.inviteToSpeakInAudioRoom(currentUser.id, userId, roomId);
-    const handleMoveToAudience = (userId: string) => geminiService.moveToAudienceInAudioRoom(currentUser.id, userId, roomId);
-
+    const handleInviteToSpeak = (userId: string) => { geminiService.inviteToSpeakInAudioRoom(currentUser.id, userId, roomId); setParticipantMenu(null); };
+    const handleMoveToAudience = (userId: string) => { geminiService.moveToAudienceInAudioRoom(currentUser.id, userId, roomId); setParticipantMenu(null); };
+    const handleKickUser = (userId: string) => { geminiService.kickUserFromRoom(roomId, currentUser.id, userId); setParticipantMenu(null); };
+    const handlePromoteCoHost = (userId: string) => { geminiService.promoteToCoHost(roomId, currentUser.id, userId); setParticipantMenu(null); };
+    const handleDemoteCoHost = (userId: string) => { geminiService.demoteFromCoHost(roomId, currentUser.id, userId); setParticipantMenu(null); };
+    const handleRemoteMute = (userId: string, shouldMute: boolean) => { geminiService.setRemoteMuteStatus(roomId, currentUser.id, userId, shouldMute); setParticipantMenu(null); };
+    const handleUpdateTheme = (theme: string) => { geminiService.updateRoomTheme(roomId, currentUser.id, theme); setIsThemePickerOpen(false); };
 
     if (isLoading || !room) {
         return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Room...</div>;
     }
     
     const isHost = room.host.id === currentUser.id;
+    const isCoHost = room.coHostIds?.includes(currentUser.id) ?? false;
     const isSpeaker = room.speakers.some(s => s.id === currentUser.id);
     const isListener = !isSpeaker;
     const hasRaisedHand = room.raisedHands.includes(currentUser.id);
@@ -232,11 +266,23 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         const agoraUID = (parseInt(s.id, 36) % 10000000).toString();
         speakerIdMap.set(agoraUID, s.id);
     });
+    
+    const canManage = (targetUser: User): boolean => {
+        if (currentUser.id === targetUser.id) return false;
+        if (isHost) return true;
+        if (isCoHost) {
+            const isTargetHost = room.host.id === targetUser.id;
+            const isTargetCoHost = room.coHostIds?.includes(targetUser.id) ?? false;
+            return !isTargetHost && !isTargetCoHost;
+        }
+        return false;
+    };
 
     const activeAppSpeakerId = activeSpeakerId ? speakerIdMap.get(activeSpeakerId) : null;
+    const roomTheme = ROOM_THEMES[room.theme || 'default'] || ROOM_THEMES.default;
 
     return (
-        <div className="h-full w-full flex flex-col md:flex-row bg-gradient-to-b from-slate-900 to-black text-white overflow-hidden">
+        <div className={`h-full w-full flex flex-col md:flex-row text-white overflow-hidden ${roomTheme.bgClass}`}>
             <div className="flex-grow flex flex-col">
                 <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
                     <div>
@@ -253,11 +299,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
                         <div className="flex flex-wrap gap-6">
                             {room.speakers.map(speaker => (
-                                <Avatar key={speaker.id} user={speaker} isHost={speaker.id === room.host.id} isSpeaking={speaker.id === activeAppSpeakerId}>
-                                    {isHost && speaker.id !== currentUser.id && (
-                                        <button onClick={() => handleMoveToAudience(speaker.id)} className="text-xs text-red-400 hover:underline">Move to Audience</button>
-                                    )}
-                                </Avatar>
+                                <Avatar key={speaker.id} user={speaker} isHost={speaker.id === room.host.id} isCoHost={room.coHostIds?.includes(speaker.id)} isSpeaking={speaker.id === activeAppSpeakerId} onClick={(e) => canManage(speaker) && setParticipantMenu({ user: speaker, event: e })}/>
                             ))}
                         </div>
                     </section>
@@ -267,7 +309,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                             <h2 className="text-lg font-semibold text-green-400 mb-4">Requests to Speak ({raisedHandUsers.length})</h2>
                             <div className="flex flex-wrap gap-6 bg-slate-800/50 p-4 rounded-lg">
                                {raisedHandUsers.map(user => (
-                                    <Avatar key={user.id} user={user}>
+                                    <Avatar key={user.id} user={user} onClick={(e) => canManage(user) && setParticipantMenu({ user: user, event: e })}>
                                         <button onClick={() => handleInviteToSpeak(user.id)} className="text-xs bg-green-500 text-white px-2 py-1 rounded-md font-semibold">Invite to Speak</button>
                                     </Avatar>
                                ))}
@@ -279,12 +321,12 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Listeners ({room.listeners.length})</h2>
                         <div className="flex flex-wrap gap-4">
                             {room.listeners.map(listener => (
-                                <div key={listener.id} className="relative" title={listener.name}>
-                                    <img src={listener.avatarUrl} alt={listener.name} className="w-12 h-12 rounded-full" />
+                                <button key={listener.id} onClick={(e) => canManage(listener) && setParticipantMenu({ user: listener, event: e })} disabled={!canManage(listener)} className="relative group" title={listener.name}>
+                                    <img src={listener.avatarUrl} alt={listener.name} className={`w-12 h-12 rounded-full transition-all ${canManage(listener) ? 'group-hover:ring-2 group-hover:ring-sky-400' : ''}`} />
                                     {room.raisedHands.includes(listener.id) && (
                                          <div className="absolute -bottom-1 -right-1 text-xl bg-slate-700 p-0.5 rounded-full">✋</div>
                                     )}
-                                </div>
+                                </button>
                             ))}
                         </div>
                     </section>
@@ -294,6 +336,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     <button onClick={() => setIsChatVisible(v => !v)} className="md:hidden bg-slate-600 hover:bg-slate-500 font-bold py-3 px-6 rounded-lg text-lg">
                         <Icon name="comment" className="w-6 h-6"/>
                     </button>
+                    {(isHost || isCoHost) && <button onClick={() => setIsThemePickerOpen(true)} className="bg-slate-600 hover:bg-slate-500 font-bold py-3 px-4 rounded-lg text-lg"><Icon name="swatch" className="w-6 h-6" /></button>}
                     {isHost && <button onClick={handleEndRoom} className="bg-red-700 hover:bg-red-600 font-bold py-3 px-6 rounded-lg text-lg">End Room</button>}
                     {isSpeaker && (
                         <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
@@ -330,6 +373,43 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     </button>
                 </form>
             </aside>
+            
+            {participantMenu && (
+                <div ref={participantMenuRef} className="absolute z-30 bg-slate-900/90 backdrop-blur-sm border border-slate-600 rounded-lg shadow-2xl animate-fade-in-fast" style={{ top: `${participantMenu.event.clientY}px`, left: `${participantMenu.event.clientX}px` }}>
+                    <ul className="text-sm font-semibold">
+                         {room.speakers.some(s => s.id === participantMenu.user.id) ? (
+                            <>
+                                {isHost && !room.coHostIds?.includes(participantMenu.user.id) && <li><button onClick={() => handlePromoteCoHost(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Make Co-host</button></li>}
+                                {isHost && room.coHostIds?.includes(participantMenu.user.id) && <li><button onClick={() => handleDemoteCoHost(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Remove Co-host</button></li>}
+                                {room.mutedByHostIds?.includes(participantMenu.user.id)
+                                ? <li><button onClick={() => handleRemoteMute(participantMenu.user.id, false)} className="w-full text-left p-3 text-green-400 hover:bg-slate-700/50">Ask to Unmute</button></li>
+                                : <li><button onClick={() => handleRemoteMute(participantMenu.user.id, true)} className="w-full text-left p-3 hover:bg-slate-700/50">Mute Speaker</button></li>
+                                }
+                                <li><button onClick={() => handleMoveToAudience(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Move to Audience</button></li>
+                            </>
+                         ) : ( // Is a listener
+                            <li><button onClick={() => handleInviteToSpeak(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Invite to Speak</button></li>
+                         )}
+                         <li><button onClick={() => handleKickUser(participantMenu.user.id)} className="w-full text-left p-3 text-red-400 hover:bg-red-500/10">Remove from Room</button></li>
+                    </ul>
+                </div>
+            )}
+
+            {isThemePickerOpen && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsThemePickerOpen(false)}>
+                     <div className="w-full max-w-sm bg-slate-800 border border-slate-700 rounded-lg shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
+                         <h2 className="text-xl font-bold text-slate-100 mb-4">Change Room Theme</h2>
+                         <div className="grid grid-cols-2 gap-4">
+                             {Object.entries(ROOM_THEMES).map(([key, theme]) => (
+                                 <button key={key} onClick={() => handleUpdateTheme(key)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/50">
+                                     <div className={`w-10 h-10 rounded-full ${theme.bgClass}`} />
+                                     <span className="font-semibold">{theme.name}</span>
+                                 </button>
+                             ))}
+                         </div>
+                     </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -255,16 +255,18 @@ export interface RoomMessage {
 export interface LiveAudioRoom {
   id: string;
   host: User;
+  coHostIds?: string[]; // Array of user IDs
   topic: string;
   speakers: User[];
   listeners: User[];
   raisedHands: string[]; // Array of user IDs
+  mutedByHostIds?: string[]; // Array of user IDs muted by host/co-host
   createdAt: string;
   status: 'live' | 'ended';
-  // New features
   privacy?: 'public' | 'private' | 'friends-only';
   password?: string;
   messages?: RoomMessage[];
+  theme?: string; // Key for ROOM_THEMES
 }
 
 export interface VideoParticipantState extends User {

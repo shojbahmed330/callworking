@@ -1569,6 +1569,89 @@ async sendAudioRoomMessage(roomId: string, sender: User, text: string): Promise<
         messages: arrayUnion(message)
     });
 },
+// @FIXML-FIX-START
+async kickUserFromRoom(roomId: string, managerId: string, targetUserId: string): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const isHost = roomData.host.id === managerId;
+        const isCoHost = roomData.coHostIds?.includes(managerId);
+        
+        if (!isHost && !isCoHost) throw new Error("Permission denied to kick user.");
+        
+        const userAsSpeaker = roomData.speakers.find(u => u.id === targetUserId);
+        const userAsListener = roomData.listeners.find(u => u.id === targetUserId);
+        
+        const updates: { [key: string]: any } = {
+            raisedHands: arrayRemove(targetUserId)
+        };
+
+        if (userAsSpeaker) {
+            updates.speakers = arrayRemove(userAsSpeaker);
+        }
+        if (userAsListener) {
+            updates.listeners = arrayRemove(userAsListener);
+        }
+        
+        transaction.update(roomRef, updates);
+    });
+},
+async promoteToCoHost(roomId: string, hostId: string, targetUserId: string): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        if (roomData.host.id !== hostId) throw new Error("Only the host can promote co-hosts.");
+        transaction.update(roomRef, { coHostIds: arrayUnion(targetUserId) });
+    });
+},
+async demoteFromCoHost(roomId: string, hostId: string, targetUserId: string): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        if (roomData.host.id !== hostId) throw new Error("Only the host can demote co-hosts.");
+        transaction.update(roomRef, { coHostIds: arrayRemove(targetUserId) });
+    });
+},
+async setRemoteMuteStatus(roomId: string, managerId: string, targetUserId: string, shouldMute: boolean): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const isHost = roomData.host.id === managerId;
+        const isCoHost = roomData.coHostIds?.includes(managerId);
+
+        if (!isHost && !isCoHost) throw new Error("Permission denied to mute user.");
+        
+        if (shouldMute) {
+            transaction.update(roomRef, { mutedByHostIds: arrayUnion(targetUserId) });
+        } else {
+            transaction.update(roomRef, { mutedByHostIds: arrayRemove(targetUserId) });
+        }
+    });
+},
+async updateRoomTheme(roomId: string, hostId: string, theme: string): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    const roomDoc = await roomRef.get();
+    if (roomDoc.exists) {
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const isHost = roomData.host.id === hostId;
+        const isCoHost = roomData.coHostIds?.includes(hostId);
+        if (isHost || isCoHost) {
+            await roomRef.update({ theme: theme });
+        } else {
+            console.error("Permission denied to update room theme.");
+        }
+    }
+},
+// @FIXML-FIX-END
 
     // --- Campaigns, Stories, Groups, Admin, etc. ---
     async getCampaignsForSponsor(sponsorId: string): Promise<Campaign[]> {
