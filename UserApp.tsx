@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, User, Post, VoiceState, ScrollState, NLUResponse, Campaign, Story, Call, CallHistoryEntry, Comment } from './types';
 import { firebaseService } from './services/firebaseService';
@@ -202,7 +201,28 @@ case AppView.POST_DETAIL: return <PostDetailScreen currentUser={currentUser!} po
     }
 
     if (!currentUser) {
-        return <AuthScreen onSetTtsMessage={setTtsMessage} lastCommand={lastCommand} onCommandProcessed={() => setLastCommand(null)} />;
+        return (
+            <div className="h-screen w-screen bg-black flex flex-col font-sans text-white">
+                <main className="flex-grow overflow-y-auto">
+                    <AuthScreen onSetTtsMessage={setTtsMessage} lastCommand={lastCommand} onCommandProcessed={() => setLastCommand(null)} />
+                </main>
+                <MobileBottomNav 
+                    onNavigate={(viewName) => {
+                        if (viewName === 'feed') handleNavigate(AppView.FEED);
+                        // Add other navigations if needed for logged-out state, otherwise they do nothing
+                    }} 
+                    friendRequestCount={0} 
+                    activeView={AppView.AUTH} 
+                    voiceState={voiceState} 
+                    onMicClick={() => {}} 
+                    onSendCommand={(cmd) => setLastCommand(cmd)} 
+                    commandInputValue={commandInputValue} 
+                    setCommandInputValue={setCommandInputValue} 
+                    ttsMessage={ttsMessage} 
+                    isChatRecording={isChatRecording} 
+                />
+            </div>
+        );
     }
 
     return (
