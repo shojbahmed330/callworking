@@ -123,7 +123,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
         case 'text':
             return <p className="text-slate-200 mt-1 whitespace-pre-wrap"><TaggedContent text={comment.text || ''} onTagClick={onAuthorClick} /></p>;
         case 'image':
-            return <img src={comment.imageUrl} alt="Comment image" className="mt-2 rounded-lg max-w-full h-auto max-h-60" />;
+            return <img src={comment.imageUrl} alt="Comment" className="mt-2 rounded-lg max-w-full h-auto max-h-60" />;
         case 'audio':
         default:
             return (

@@ -22,8 +22,7 @@ interface ImageModalProps {
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, onClose, onReactToPost, onReactToComment, onPostComment, onEditComment, onDeleteComment, onOpenProfile, onSharePost }) => {
-  // FIX: This is the most robust way to prevent the crash.
-  // If the post data is null, OR if the author field is missing (e.g. user was deleted),
+  // FIX: If the post data is null, OR if the author field is missing (e.g. user was deleted),
   // we render nothing. This completely avoids any attempt to access properties of a null object.
   if (!post || !post.author) {
     return null;
@@ -181,7 +180,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
           />
       </main>
 
-      <aside className={`w-[380px] flex-shrink-0 bg-slate-900 border-l border-slate-700/50 flex flex-col transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`} onClick={(e) => e.stopPropagation()}>
+      <aside className={`w-full md:w-[380px] flex-shrink-0 bg-slate-900 border-l border-slate-700/50 flex flex-col transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`} onClick={(e) => e.stopPropagation()}>
           <header className="p-4 border-b border-slate-700">
               <button onClick={() => onOpenProfile(post.author.username)} className="flex items-center gap-3 group">
                 <img src={post.author.avatarUrl} alt={post.author.name} className="w-12 h-12 rounded-full" />

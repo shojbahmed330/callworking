@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthMode } from './types';
 import { firebaseService } from './services/firebaseService';
@@ -7,20 +6,18 @@ import { getTtsPrompt } from './constants';
 import { useSettings } from './contexts/SettingsContext';
 
 interface AuthScreenProps {
-  ttsMessage: string;
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
   onCommandProcessed: () => void;
   initialAuthError?: string;
 }
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ ttsMessage, onSetTtsMessage, lastCommand, onCommandProcessed, initialAuthError }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({ 
+  onSetTtsMessage, lastCommand, onCommandProcessed, initialAuthError
+}) => {
   const [mode, setMode] = useState<AuthMode>(AuthMode.LOGIN);
   
-  // State for login
   const [identifier, setIdentifier] = useState('');
-
-  // State for signup
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -65,8 +62,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ ttsMessage, onSetTtsMessage, la
                     onSetTtsMessage(getTtsPrompt('login_password', language));
                 } else {
                     await firebaseService.signInWithEmail(identifier, cleanedText);
-                    // onAuthSuccess is handled by the onAuthStateChanged listener in UserApp.
-                    // The catch block below will handle any failures.
                 }
                 break;
             case AuthMode.SIGNUP_FULLNAME:
@@ -109,7 +104,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ ttsMessage, onSetTtsMessage, la
                     setPassword('');
                     setMode(AuthMode.SIGNUP_PASSWORD);
                 } else {
-                    // Create user in Firebase
                     const success = await firebaseService.signUpWithEmail(email, password, fullName, username);
                     if (!success) {
                         setAuthError("Could not create account. The email might be in use.");
@@ -117,28 +111,25 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ ttsMessage, onSetTtsMessage, la
                         resetSignupState();
                         setMode(AuthMode.LOGIN);
                     }
-                     // onAuthSuccess is handled by the onAuthStateChanged listener in UserApp
                 }
                 break;
         }
       } catch (error: any) {
           console.error("Auth error:", error);
-          setAuthError(error.message || "An unexpected error occurred.");
-          onSetTtsMessage(error.message || "An unexpected error occurred.");
+          const errorMessage = error.message || "An unexpected error occurred.";
+          setAuthError(errorMessage);
+          onSetTtsMessage(errorMessage);
           if (mode === AuthMode.LOGIN) {
-            setIdentifier(''); // Clear identifier on login failure
+            setIdentifier('');
           }
       } finally {
           setIsLoading(false);
       }
-  }, [mode, identifier, fullName, username, email, password, onSetTtsMessage, language]);
-
+  }, [mode, identifier, password, email, fullName, username, onSetTtsMessage, language]);
 
   useEffect(() => {
     if (!lastCommand) return;
     
-    // For Auth screen, we assume any command that isn't 'login' or 'signup' is input.
-    // A more complex NLU could be used here, but this is simpler.
     const isLoginCommand = ['log in', 'login', 'login koro'].includes(lastCommand.toLowerCase());
     const isSignupCommand = ['sign up', 'signup', 'register'].includes(lastCommand.toLowerCase());
 
@@ -160,26 +151,29 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ ttsMessage, onSetTtsMessage, la
   const renderSignupProgress = () => {
     if (mode === AuthMode.LOGIN) return null;
     return (
-        <div className="mt-4 text-left text-sm space-y-1">
-           {fullName && <p className="text-gray-500">Full Name: <span className="text-gray-800">{fullName}</span></p>}
-           {username && <p className="text-gray-500">Username: <span className="text-gray-800">@{username}</span></p>}
-           {email && <p className="text-gray-500">Email: <span className="text-gray-800">{email}</span></p>}
-           {password && <p className="text-gray-500">Password: <span className="text-gray-800">********</span></p>}
+        <div className="mt-4 text-left text-sm space-y-1 p-3 border border-lime-500/20 rounded-md bg-gray-900/30">
+           {fullName && <p className="text-lime-400/80">Full Name: <span className="text-lime-300">{fullName}</span></p>}
+           {username && <p className="text-lime-400/80">Username: <span className="text-lime-300">@{username}</span></p>}
+           {email && <p className="text-lime-400/80">Email: <span className="text-lime-300">{email}</span></p>}
+           {password && <p className="text-lime-400/80">Password: <span className="text-lime-300">********</span></p>}
         </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center text-gray-800 p-8 bg-slate-100">
-      <Icon name="logo" className="w-24 h-24 text-blue-600 mb-6" />
-      <h1 className="text-4xl font-bold mb-8">VoiceBook</h1>
+    <div className="flex flex-col items-center justify-center h-full text-center text-lime-400 p-4 sm:p-8 bg-black">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(57,255,20,0.3),rgba(255,255,255,0))] opacity-20 pointer-events-none"></div>
+
+      <Icon name="logo" className="w-24 h-24 text-lime-400 mb-4 text-shadow-lg" />
+      <h1 className="text-5xl font-bold mb-2 text-shadow-lg">VoiceBook</h1>
+      <p className="text-lime-400/80 mb-8 animate-pulse">[[ A U T H E N T I C A T E ]]</p>
       
-      <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
-        <p className={`font-medium text-lg min-h-[3em] flex items-center justify-center ${authError ? 'text-red-500' : 'text-blue-600'}`}>
-          {isLoading ? 'Processing...' : (authError || ttsMessage)}
-        </p>
-        { (mode > AuthMode.LOGIN) && renderSignupProgress() }
-        { (mode === AuthMode.LOGIN && identifier) && <p className="text-gray-500 text-sm mt-4">Logging in as: <span className="text-gray-800">{identifier}</span></p> }
+      <div className="w-full max-w-sm">
+        <div className="min-h-[3em]">
+          {isLoading && <p className="animate-pulse">Processing...</p>}
+        </div>
+        {(mode > AuthMode.LOGIN) && renderSignupProgress()}
+        {(mode === AuthMode.LOGIN && identifier) && <p className="text-lime-400/70 text-sm mt-4">Logging in as: <span className="text-lime-300">{identifier}</span></p>}
       </div>
     </div>
   );

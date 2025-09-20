@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RecordingState, User, Post, PollOption } from './types';
 import { IMAGE_GENERATION_COST, getTtsPrompt } from './constants';

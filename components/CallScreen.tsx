@@ -45,9 +45,9 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             if (!liveCall || ['ended', 'declined', 'missed'].includes(liveCall.status)) {
                 // Add a small delay to allow the user to see the final status message
                 setTimeout(() => {
-                    // This check prevents a crash if the component is already unmounted
+                    // FIX: This check prevents a crash if the component is already unmounted
                     // when the timeout fires, which can happen in rapid state changes.
-                    if (callStatusRef.current !== 'active' && callStatusRef.current !== 'ringing') {
+                    if (callStatusRef.current && !['active', 'ringing'].includes(callStatusRef.current)) {
                         onGoBack();
                     }
                 }, 2000);
@@ -91,7 +91,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             renewalInterval = window.setInterval(async () => {
                 try {
                     console.log("Renewing Agora token...");
-                    const uid = parseInt(currentUser.id, 36) % 10000000;
+                    const uid = currentUser.id;
                     const newToken = await geminiService.getAgoraToken(callId, uid);
                     if (newToken && agoraClient.current) {
                         await agoraClient.current.renewToken(newToken);
@@ -102,7 +102,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 } catch (error) {
                     console.error("Error renewing Agora token:", error);
                 }
-            }, 45000); 
+            }, 45 * 1000);  // Renew every 45 seconds
         }
 
         return () => {
@@ -143,7 +143,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             });
             
             // Join the Agora channel first
-            const uid = parseInt(currentUser.id, 36) % 10000000;
+            const uid = currentUser.id;
             const token = await geminiService.getAgoraToken(callId, uid);
             if (!token) {
                 throw new Error("Failed to retrieve Agora token. The call cannot proceed.");
