@@ -1625,10 +1625,70 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         } as Lead));
     },
     async getStories(currentUserId: string): Promise<{ author: User; stories: Story[]; allViewed: boolean; }[]> {
-        // This is a simplified mock as the full implementation is complex.
         const currentUser = await this.getUserProfileById(currentUserId);
         if (!currentUser) return [];
-        return [];
+    
+        const friendIds = currentUser.friendIds || [];
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+        const storiesRef = db.collection('stories');
+        const q = storiesRef.where('createdAt', '>', Timestamp.fromDate(twentyFourHoursAgo)).orderBy('createdAt', 'desc');
+    
+        try {
+            const snapshot = await q.get();
+            if (snapshot.empty) {
+                return [];
+            }
+    
+            const allRecentStories: Story[] = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+                } as Story;
+            });
+    
+            const visibleStories = allRecentStories.filter(story => {
+                if (!story.author) return false;
+                if (story.author.id === currentUserId) return true;
+                if (story.privacy === 'public') return true;
+                if (story.privacy === 'friends' && friendIds.includes(story.author.id)) return true;
+                return false;
+            });
+    
+            const storiesByAuthorMap = new Map<string, { author: User; stories: Story[]; allViewed: boolean; }>();
+    
+            for (const story of visibleStories) {
+                const authorId = story.author.id;
+                if (!storiesByAuthorMap.has(authorId)) {
+                    storiesByAuthorMap.set(authorId, {
+                        author: story.author,
+                        stories: [],
+                        allViewed: true
+                    });
+                }
+                const group = storiesByAuthorMap.get(authorId)!;
+                group.stories.push(story);
+                if (!(story.viewedBy || []).includes(currentUserId)) {
+                    group.allViewed = false;
+                }
+            }
+            
+            const result = Array.from(storiesByAuthorMap.values());
+            
+            result.sort((a, b) => {
+                if (a.author.id === currentUserId) return -1;
+                if (b.author.id === currentUserId) return 1;
+                return 0;
+            });
+    
+            return result;
+    
+        } catch (error) {
+            console.error("Error fetching stories:", error);
+            return [];
+        }
     },
     async markStoryAsViewed(storyId: string, userId: string): Promise<void> {
         await db.collection('stories').doc(storyId).update({ viewedBy: arrayUnion(userId) });
