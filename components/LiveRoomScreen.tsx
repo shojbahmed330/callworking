@@ -14,6 +14,16 @@ interface LiveRoomScreenProps {
   onSetTtsMessage: (message: string) => void;
 }
 
+const useIsMobile = () => {
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    return isMobile;
+};
+
 const Avatar: React.FC<{ user: User; isHost?: boolean; isCoHost?: boolean; isSpeaking?: boolean; children?: React.ReactNode, onClick?: (event: React.MouseEvent) => void }> = ({ user, isHost, isCoHost, isSpeaking, children, onClick }) => (
     <div className="relative flex flex-col items-center gap-2 text-center w-24">
         <button onClick={onClick} disabled={!onClick} className="relative group">
@@ -55,6 +65,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const [isMuted, setIsMuted] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const participantMenuRef = useRef<HTMLDivElement>(null);
+    const isMobile = useIsMobile();
     
     const onGoBackRef = useRef(onGoBack);
     const onSetTtsMessageRef = useRef(onSetTtsMessage);
@@ -375,23 +386,39 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             </aside>
             
             {participantMenu && (
-                <div ref={participantMenuRef} className="absolute z-30 bg-slate-900/90 backdrop-blur-sm border border-slate-600 rounded-lg shadow-2xl animate-fade-in-fast" style={{ top: `${participantMenu.event.clientY}px`, left: `${participantMenu.event.clientX}px` }}>
-                    <ul className="text-sm font-semibold">
-                         {room.speakers.some(s => s.id === participantMenu.user.id) ? (
-                            <>
-                                {isHost && !room.coHostIds?.includes(participantMenu.user.id) && <li><button onClick={() => handlePromoteCoHost(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Make Co-host</button></li>}
-                                {isHost && room.coHostIds?.includes(participantMenu.user.id) && <li><button onClick={() => handleDemoteCoHost(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Remove Co-host</button></li>}
-                                {room.mutedByHostIds?.includes(participantMenu.user.id)
-                                ? <li><button onClick={() => handleRemoteMute(participantMenu.user.id, false)} className="w-full text-left p-3 text-green-400 hover:bg-slate-700/50">Ask to Unmute</button></li>
-                                : <li><button onClick={() => handleRemoteMute(participantMenu.user.id, true)} className="w-full text-left p-3 hover:bg-slate-700/50">Mute Speaker</button></li>
-                                }
-                                <li><button onClick={() => handleMoveToAudience(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Move to Audience</button></li>
-                            </>
-                         ) : ( // Is a listener
-                            <li><button onClick={() => handleInviteToSpeak(participantMenu.user.id)} className="w-full text-left p-3 hover:bg-slate-700/50">Invite to Speak</button></li>
-                         )}
-                         <li><button onClick={() => handleKickUser(participantMenu.user.id)} className="w-full text-left p-3 text-red-400 hover:bg-red-500/10">Remove from Room</button></li>
-                    </ul>
+                <div 
+                    ref={participantMenuRef}
+                    className={`fixed md:absolute inset-0 md:inset-auto z-30 ${isMobile ? 'bg-black/50' : ''} flex items-end md:block`}
+                    onClick={isMobile ? () => setParticipantMenu(null) : undefined}
+                    style={!isMobile ? { top: `${participantMenu.event.clientY + 10}px`, left: `${participantMenu.event.clientX}px` } : {}}
+                >
+                    <div 
+                        className={`w-full md:w-56 bg-slate-800 md:bg-slate-900/90 md:backdrop-blur-sm md:border border-slate-700 rounded-t-2xl md:rounded-lg shadow-2xl ${isMobile ? 'animate-slide-up-fast' : 'animate-fade-in-fast'}`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {isMobile && (
+                            <div className="p-4 border-b border-slate-700 text-center">
+                                <img src={participantMenu.user.avatarUrl} alt={participantMenu.user.name} className="w-16 h-16 rounded-full mx-auto mb-2" />
+                                <p className="font-bold text-lg">{participantMenu.user.name}</p>
+                            </div>
+                        )}
+                        <ul className="text-base md:text-sm font-semibold divide-y divide-slate-700 md:divide-y-0">
+                            {room.speakers.some(s => s.id === participantMenu.user.id) ? (
+                                <>
+                                    {isHost && !room.coHostIds?.includes(participantMenu.user.id) && <li><button onClick={() => handlePromoteCoHost(participantMenu.user.id)} className="w-full text-left px-4 py-3 hover:bg-slate-700/50">Make Co-host</button></li>}
+                                    {isHost && room.coHostIds?.includes(participantMenu.user.id) && <li><button onClick={() => handleDemoteCoHost(participantMenu.user.id)} className="w-full text-left px-4 py-3 hover:bg-slate-700/50">Remove Co-host</button></li>}
+                                    {room.mutedByHostIds?.includes(participantMenu.user.id)
+                                    ? <li><button onClick={() => handleRemoteMute(participantMenu.user.id, false)} className="w-full text-left px-4 py-3 text-green-400 hover:bg-slate-700/50">Ask to Unmute</button></li>
+                                    : <li><button onClick={() => handleRemoteMute(participantMenu.user.id, true)} className="w-full text-left px-4 py-3 hover:bg-slate-700/50">Mute Speaker</button></li>
+                                    }
+                                    <li><button onClick={() => handleMoveToAudience(participantMenu.user.id)} className="w-full text-left px-4 py-3 hover:bg-slate-700/50">Move to Audience</button></li>
+                                </>
+                            ) : ( // Is a listener
+                                <li><button onClick={() => handleInviteToSpeak(participantMenu.user.id)} className="w-full text-left px-4 py-3 hover:bg-slate-700/50">Invite to Speak</button></li>
+                            )}
+                            <li><button onClick={() => handleKickUser(participantMenu.user.id)} className="w-full text-left px-4 py-3 text-red-400 hover:bg-red-500/10">Remove from Room</button></li>
+                        </ul>
+                    </div>
                 </div>
             )}
 

@@ -262,7 +262,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   }
 
   return (
-    <div className="w-72 h-[450px] bg-[#242526] rounded-t-lg flex flex-col shadow-2xl border border-b-0 border-slate-700 font-sans">
+    <div className="w-[calc(100vw-1rem)] md:w-80 h-[65vh] md:h-[450px] bg-[#242526] rounded-t-lg flex flex-col shadow-2xl border border-b-0 border-slate-700 font-sans">
       <header className="flex-shrink-0 flex items-center justify-between p-2 bg-[#242526] rounded-t-lg border-b border-slate-700">
         <button onClick={() => onHeaderClick(peerUser.id)} className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-700/50">
           <div className="relative">

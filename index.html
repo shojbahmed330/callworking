@@ -41,6 +41,13 @@
       .animate-fade-in-fast {
         animation: fade-in-fast 0.2s ease-out;
       }
+      @keyframes slide-up-fast {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+      }
+      .animate-slide-up-fast {
+        animation: slide-up-fast 0.2s ease-out;
+      }
       /* Hide scrollbar for elements with this class */
       .no-scrollbar::-webkit-scrollbar {
         display: none;
