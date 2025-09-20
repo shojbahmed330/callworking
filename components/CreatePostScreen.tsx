@@ -1,9 +1,15 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+// FIX: Corrected import path
 import { User, Post, RecordingState } from '../types';
+// FIX: Corrected import path
 import { IMAGE_GENERATION_COST, getTtsPrompt } from '../constants';
 import Icon from './Icon';
+// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
+// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
+// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
 import ImageCropper from './ImageCropper';
 import Waveform from './Waveform';

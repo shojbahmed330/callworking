@@ -1,9 +1,15 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Corrected import path
 import { User, Conversation, AppView, Message } from '../types';
+// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
+// FIX: Corrected import path
 import { getTtsPrompt } from '../constants';
+// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
+// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
 
 interface ConversationsScreenProps {

@@ -1,12 +1,19 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+// FIX: Corrected import path
 import { User, Post, FriendshipStatus, ScrollState, AppView, Comment } from '../types';
 import { PostCard } from './PostCard';
 import Icon from './Icon';
+// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
+// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
+// FIX: Corrected import path
 import { getTtsPrompt } from '../constants';
 import ImageCropper from './ImageCropper';
+// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
+// FIX: Corrected import path
 import { t } from '../i18n';
 import UserCard from './UserCard';
 

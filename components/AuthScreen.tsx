@@ -1,9 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Corrected import path
 import { AuthMode } from '../types';
+// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';
+// FIX: Corrected import path
 import { getTtsPrompt } from '../constants';
+// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
 
 interface AuthScreenProps {

@@ -1,11 +1,17 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+// FIX: Corrected import path
 import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
 import CommentCard from './CommentCard';
+// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
+// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';
+// FIX: Corrected import path
 import { getTtsPrompt } from '../constants';
+// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
 
 interface PostDetailScreenProps {

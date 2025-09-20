@@ -1,12 +1,16 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+// FIX: Corrected import path
 import { RecordingState, User, Comment } from '../types';
 import Waveform from './Waveform';
+// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
+// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
+// FIX: Corrected import path
 import { getTtsPrompt } from '../constants';
 import Icon from './Icon';
+// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
 
 interface CreateCommentScreenProps {

@@ -1,6 +1,6 @@
 
-
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+// FIX: Corrected import path
 import type { Comment, User } from '../types';
 import Icon from './Icon';
 import Waveform from './Waveform';
@@ -158,7 +158,8 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
             
             {reactionCount > 0 && (
                 <div className="absolute -bottom-2 right-2 bg-slate-800 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 border border-slate-600">
-                    <span>{Object.values(comment.reactions || {})[0]}</span>
+                    {/* FIX: Ensure the value is a string before rendering to prevent ReactNode type error. */}
+                    <span>{String(Object.values(comment.reactions || {})[0])}</span>
                     <span>{reactionCount}</span>
                 </div>
             )}
