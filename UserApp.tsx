@@ -18,6 +18,7 @@ import Sidebar from './components/Sidebar';
 import Icon from './components/Icon';
 import AdModal from './components/AdModal';
 import { geminiService } from './services/geminiService';
+// FIX: Corrected import path for firebaseService.
 import { firebaseService } from './services/firebaseService';
 import { IMAGE_GENERATION_COST, REWARD_AD_COIN_VALUE, getTtsPrompt } from './constants';
 import ConversationsScreen from './components/ConversationsScreen';

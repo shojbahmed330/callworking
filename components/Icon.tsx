@@ -1,8 +1,7 @@
 
-
 import React from 'react';
 
-type IconName = 'mic' | 'like' | 'comment' | 'share' | 'play' | 'pause' | 'logo' | 'back' | 'settings' | 'add-friend' | 'message' | 'edit' | 'bell' | 'briefcase' | 'academic-cap' | 'home' | 'map-pin' | 'user-slash' | 'globe' | 'users' | 'lock-closed' | 'ellipsis-vertical' | 'trash' | 'speaker-wave' | 'swatch' | 'coin' | 'chat-bubble-group' | 'video-camera' | 'video-camera-slash' | 'microphone-slash' | 'close' | 'add-circle' | 'paper-airplane' | 'home-solid' | 'users-group-solid' | 'photo' | 'compass' | 'film' | 'link' | 'facebook' | 'twitter' | 'whatsapp' | 'phone' | 'face-smile' | 'reply' | 'dots-horizontal';
+type IconName = 'mic' | 'like' | 'comment' | 'share' | 'play' | 'pause' | 'logo' | 'back' | 'settings' | 'add-friend' | 'message' | 'edit' | 'bell' | 'briefcase' | 'academic-cap' | 'home' | 'map-pin' | 'user-slash' | 'globe' | 'users' | 'lock-closed' | 'ellipsis-vertical' | 'trash' | 'speaker-wave' | 'swatch' | 'coin' | 'chat-bubble-group' | 'video-camera' | 'video-camera-slash' | 'microphone-slash' | 'close' | 'add-circle' | 'paper-airplane' | 'home-solid' | 'users-group-solid' | 'photo' | 'compass' | 'film' | 'link' | 'facebook' | 'twitter' | 'whatsapp' | 'phone' | 'face-smile' | 'reply' | 'dots-horizontal' | 'trophy' | 'gift' | 'apps' | 'rose' | 'plus';
 
 interface IconProps {
   name: IconName;
@@ -256,6 +255,32 @@ const ICONS: Record<IconName, React.ReactNode> = {
   'dots-horizontal': (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+    </svg>
+  ),
+  trophy: (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9a9.75 9.75 0 01-4.874-1.97m18.748 0a9.75 9.75 0 00-4.874-1.97m-13.999 0a9.75 9.75 0 0113.999 0m-4.242 0a3.75 3.75 0 00-5.516 0m5.516 0v.016m-5.516 0v.016m5.516 0a3.75 3.75 0 01-5.516 0m5.516 0L12 14.25l-2.242 2.242" />
+    </svg>
+  ),
+  gift: (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 19.5v-8.25M12 4.875A2.625 2.625 0 1012 10.125A2.625 2.625 0 0012 4.875z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25H3v8.25h18v-8.25z" />
+    </svg>
+  ),
+  apps: (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 8.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 018.25 20.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6A2.25 2.25 0 0115.75 3.75h2.25A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75A2.25 2.25 0 0115.75 13.5h2.25a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+    </svg>
+  ),
+  rose: (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+    </svg>
+  ),
+  plus: (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
     </svg>
   ),
 };
