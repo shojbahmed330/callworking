@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RecordingState, User, Post } from '../types';
-import { IMAGE_GENERATION_COST, getTtsPrompt } from '../constants';
+import { getTtsPrompt } from '../constants';
 import Icon from './Icon';
 import { geminiService } from '../services/geminiService';
 import { firebaseService } from '../services/firebaseService';
@@ -32,7 +32,7 @@ const EMOJI_PICKER_LIST = [
   '😀', '😂', '😍', '❤️', '👍', '🙏', '😭', '😮', '🤔', '🥳', '😎', '😢', '😠', '🎉', '🔥'
 ];
 
-type SubView = 'main' | 'feelings' | 'audio';
+type SubView = 'main' | 'feelings'; // Removed 'audio'
 type Feeling = { emoji: string; text: string };
 
 const dataURLtoFile = (dataurl: string, filename: string): File | null => {
@@ -88,8 +88,22 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
         }, 1000);
     }, [stopTimer]);
     
+    const handleDeleteAudio = useCallback(() => {
+        stopTimer();
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            setAudioUrl(null);
+        }
+        setRecordingState(RecordingState.IDLE);
+        setDuration(0);
+        onSetTtsMessage("Audio recording discarded.");
+    }, [audioUrl, onSetTtsMessage, stopTimer]);
+    
     const handleStartRecording = useCallback(async () => {
-        setSubView('audio');
+        // Clear other media types when starting a new recording
+        setUploadedImageFile(null);
+        setUploadedImagePreview(null);
+        
         if (audioUrl) {
             URL.revokeObjectURL(audioUrl);
             setAudioUrl(null);
@@ -131,6 +145,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
         }
     }, [stopTimer]);
 
+
     useEffect(() => {
         if (startRecording) {
             handleStartRecording();
@@ -152,6 +167,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file && file.type.startsWith('image/')) {
+            handleDeleteAudio(); // Clear any existing audio recording
             const reader = new FileReader();
             reader.onloadend = () => {
                 setImageToCrop(reader.result as string);
@@ -224,39 +240,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
         setFeeling(selected);
         setSubView('main');
     };
-
-    const renderAudioView = () => (
-        <div className="w-full flex flex-col items-center justify-center p-4 min-h-[250px]">
-            {recordingState === RecordingState.RECORDING && (
-                <>
-                    <div className="w-full h-24">
-                        <Waveform isPlaying={false} isRecording={true}/>
-                    </div>
-                    <p className="text-2xl font-mono mt-2">00:{duration.toString().padStart(2, '0')}</p>
-                    <button onClick={handleStopRecording} className="mt-4 p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white">
-                        <Icon name="pause" className="w-6 h-6" />
-                    </button>
-                </>
-            )}
-            {recordingState === RecordingState.PREVIEW && audioUrl && (
-                <div className="text-center w-full space-y-3">
-                    <p className="text-lg">Preview your {duration}s voice post</p>
-                    <audio src={audioUrl} controls className="w-full" />
-                    <div className="flex justify-center gap-4">
-                        <button onClick={handleStartRecording} className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold transition-colors">Re-record</button>
-                    </div>
-                </div>
-            )}
-            {recordingState === RecordingState.IDLE && (
-                <div className="text-center text-slate-400">
-                    <Icon name="mic" className="w-12 h-12 mx-auto animate-pulse text-rose-400"/>
-                    <p className="mt-2 font-semibold">Initializing microphone...</p>
-                    <p className="text-sm mt-1">Please allow microphone access if prompted.</p>
-                </div>
-            )}
-        </div>
-    );
-
+    
     const renderMainView = () => (
         <>
             <div className="flex-grow flex flex-col min-h-0">
@@ -276,8 +260,8 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                             value={caption}
                             onChange={e => setCaption(e.target.value)}
                             placeholder={`What's on your mind, ${currentUser.name.split(' ')[0]}?`}
-                            className="w-full bg-transparent text-slate-200 text-2xl my-4 focus:outline-none resize-none"
-                            rows={uploadedImagePreview ? 2 : 4}
+                            className="w-full bg-transparent text-slate-200 text-xl my-4 focus:outline-none resize-none"
+                            rows={3}
                         />
                         <div className="absolute bottom-4 right-0" ref={emojiPickerRef}>
                             <button onClick={() => setEmojiPickerOpen(p => !p)} className="p-2 text-slate-400 hover:text-slate-200">
@@ -303,6 +287,32 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                             </button>
                         </div>
                     )}
+
+                    {recordingState !== RecordingState.IDLE && (
+                         <div className="w-full flex flex-col items-center justify-center p-4 min-h-[150px] bg-slate-700/40 rounded-lg">
+                            {recordingState === RecordingState.RECORDING && (
+                                <>
+                                    <p className="text-sm text-rose-400 mb-2">Recording...</p>
+                                    <div className="w-full h-16">
+                                        <Waveform isPlaying={false} isRecording={true}/>
+                                    </div>
+                                    <p className="text-xl font-mono mt-2">00:{duration.toString().padStart(2, '0')}</p>
+                                    <button onClick={handleStopRecording} className="mt-4 p-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white">
+                                        <Icon name="pause" className="w-5 h-5" />
+                                    </button>
+                                </>
+                            )}
+                            {recordingState === RecordingState.PREVIEW && audioUrl && (
+                                <div className="text-center w-full space-y-3">
+                                    <audio src={audioUrl} controls className="w-full h-10" />
+                                    <div className="flex justify-center gap-4">
+                                        <button onClick={handleDeleteAudio} className="px-4 py-2 text-sm rounded-lg bg-red-600/80 hover:bg-red-600 text-white font-semibold transition-colors">Delete</button>
+                                        <button onClick={handleStartRecording} className="px-4 py-2 text-sm rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold transition-colors">Re-record</button>
+                                    </div>
+                                </div>
+                            )}
+                         </div>
+                    )}
                 </div>
             </div>
 
@@ -326,7 +336,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
          const filteredFeelings = FEELINGS.filter(f => f.text.toLowerCase().includes(search.toLowerCase()));
 
         return (
-            <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-7xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
+            <div className={`w-full max-w-lg bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
                 <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                     <button onClick={() => setSubView('main')} className="absolute top-1/2 -translate-y-1/2 left-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
                         <Icon name="back" className="w-5 h-5 text-slate-300" />
@@ -361,14 +371,14 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
             )}
             <div onClick={e => e.stopPropagation()}>
                 {subView === 'feelings' ? renderFeelingsView() : (
-                    <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-7xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto`}>
+                    <div className={`w-full max-w-lg bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto`}>
                          <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                             <h2 className="text-xl font-bold text-slate-100">Create post</h2>
                             <button onClick={onGoBack} className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
                                 <Icon name="close" className="w-5 h-5 text-slate-300" />
                             </button>
                         </header>
-                        {subView === 'audio' ? renderAudioView() : renderMainView()}
+                        {renderMainView()}
                     </div>
                 )}
             </div>
