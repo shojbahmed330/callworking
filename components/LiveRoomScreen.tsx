@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppView, LiveAudioRoom, User } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
@@ -37,10 +37,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
-    const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
     const [isMuted, setIsMuted] = useState(false);
     
-    // This effect handles the entire Agora lifecycle
+    // Effect 1: Handles joining and leaving the Agora channel.
     useEffect(() => {
         if (!AGORA_APP_ID) {
             onSetTtsMessage("Agora App ID is not configured. Real-time audio will not work.");
@@ -51,34 +50,33 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
-        let isSpeaker = false;
 
         const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
             await client.subscribe(user, mediaType);
             if (mediaType === 'audio') {
                 user.audioTrack?.play();
             }
-            setRemoteUsers(Array.from(client.remoteUsers));
         };
 
         const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
-            setRemoteUsers(Array.from(client.remoteUsers));
+            // No need to manually update remoteUsers state, Agora SDK handles this
         };
-
+        
         const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
-             setRemoteUsers(prevUsers => prevUsers.filter(u => u.uid !== user.uid));
+            // No need to manually update remoteUsers state, Agora SDK handles this
         };
 
         const handleVolumeIndicator = (volumes: any[]) => {
-            let maxVolume = 0;
-            let speakerUid: string | null = null;
-            volumes.forEach(volume => {
-                if (volume.level > maxVolume) {
-                    maxVolume = volume.level;
-                    speakerUid = volume.uid.toString();
-                }
-            });
-            setActiveSpeakerId(speakerUid);
+            if (volumes.length === 0) {
+                setActiveSpeakerId(null);
+                return;
+            };
+            const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max);
+            if (mainSpeaker.level > 5) { // Threshold to avoid flickering
+                setActiveSpeakerId(mainSpeaker.uid.toString());
+            } else {
+                setActiveSpeakerId(null);
+            }
         };
         
         const setupAgora = async () => {
@@ -99,50 +97,81 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             }
 
             await client.join(AGORA_APP_ID, roomId, token, uid);
-
-            // Fetch room data from Firestore to check roles
-            const roomDetails = await geminiService.getAudioRoomDetails(roomId);
-            if (roomDetails) {
-                 isSpeaker = roomDetails.speakers.some(s => s.id === currentUser.id);
-                 if (isSpeaker) {
-                    const track = await AgoraRTC.createMicrophoneAudioTrack();
-                    localAudioTrack.current = track;
-                    await client.publish(track);
-                 }
-            }
         };
 
-        // Join the room in Firestore first
         geminiService.joinLiveAudioRoom(currentUser.id, roomId).then(setupAgora);
 
-        // Cleanup function
         return () => {
             client.off('user-published', handleUserPublished);
             client.off('user-unpublished', handleUserUnpublished);
             client.off('user-left', handleUserLeft);
             client.off('volume-indicator', handleVolumeIndicator);
 
-            localAudioTrack.current?.stop();
-            localAudioTrack.current?.close();
-            client.leave();
+            if (localAudioTrack.current) {
+                localAudioTrack.current.stop();
+                localAudioTrack.current.close();
+                localAudioTrack.current = null;
+            }
+            agoraClient.current?.leave();
             geminiService.leaveLiveAudioRoom(currentUser.id, roomId);
         };
     }, [roomId, currentUser.id, onGoBack, onSetTtsMessage]);
     
-    // This effect subscribes to real-time Firestore updates for the room state
+    // Effect 2: Subscribes to real-time Firestore updates for the room state
     useEffect(() => {
         setIsLoading(true);
         const unsubscribe = geminiService.listenToAudioRoom(roomId, (roomDetails) => {
             if (roomDetails) {
                 setRoom(roomDetails);
             } else {
-                onGoBack(); // Room has ended or doesn't exist
+                onSetTtsMessage("The room has ended.");
+                onGoBack();
             }
             setIsLoading(false);
         });
 
-        return () => unsubscribe(); // Cleanup subscription on unmount
-    }, [roomId, onGoBack]);
+        return () => unsubscribe();
+    }, [roomId, onGoBack, onSetTtsMessage]);
+    
+    // Effect 3: Reacts to speaker status changes from Firestore to publish/unpublish audio.
+    useEffect(() => {
+        if (!room || !agoraClient.current) return;
+
+        const amISpeakerNow = room.speakers.some(s => s.id === currentUser.id);
+        const wasISpeakerBefore = !!localAudioTrack.current;
+
+        const handleRoleChange = async () => {
+            // Promotion: Listener -> Speaker (or Host joining)
+            if (amISpeakerNow && !wasISpeakerBefore) {
+                try {
+                    const track = await AgoraRTC.createMicrophoneAudioTrack();
+                    localAudioTrack.current = track;
+                    await agoraClient.current?.publish(track);
+                    track.setMuted(false);
+                    setIsMuted(false);
+                } catch (error) {
+                    console.error("Error creating/publishing audio track:", error);
+                    onSetTtsMessage("Could not activate microphone.");
+                }
+            }
+            // Demotion: Speaker -> Listener
+            else if (!amISpeakerNow && wasISpeakerBefore) {
+                try {
+                    if (localAudioTrack.current) {
+                        await agoraClient.current?.unpublish([localAudioTrack.current]);
+                        localAudioTrack.current.stop();
+                        localAudioTrack.current.close();
+                        localAudioTrack.current = null;
+                    }
+                } catch (error) {
+                    console.error("Error unpublishing audio track:", error);
+                }
+            }
+        };
+
+        handleRoleChange();
+
+    }, [room, currentUser.id, onSetTtsMessage]);
 
     const handleLeave = () => {
         onGoBack();
@@ -151,7 +180,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const handleEndRoom = () => {
         if (window.confirm('Are you sure you want to end this room for everyone?')) {
             geminiService.endLiveAudioRoom(currentUser.id, roomId);
-            onGoBack();
         }
     };
     
@@ -178,6 +206,15 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const hasRaisedHand = room.raisedHands.includes(currentUser.id);
     const raisedHandUsers = room.listeners.filter(u => room.raisedHands.includes(u.id));
 
+    // Map Agora UID to User ID for speaking indicator
+    const speakerIdMap = new Map<string, string>();
+    room.speakers.forEach(s => {
+        const agoraUID = (parseInt(s.id, 36) % 10000000).toString();
+        speakerIdMap.set(agoraUID, s.id);
+    });
+
+    const activeAppSpeakerId = activeSpeakerId ? speakerIdMap.get(activeSpeakerId) : null;
+
     return (
         <div className="h-full w-full flex flex-col bg-gradient-to-b from-slate-900 to-black text-white">
             <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
@@ -195,7 +232,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
                     <div className="flex flex-wrap gap-6">
                         {room.speakers.map(speaker => (
-                            <Avatar key={speaker.id} user={speaker} isHost={speaker.id === room.host.id} isSpeaking={speaker.id === activeSpeakerId}>
+                            <Avatar key={speaker.id} user={speaker} isHost={speaker.id === room.host.id} isSpeaking={speaker.id === activeAppSpeakerId}>
                                 {isHost && speaker.id !== currentUser.id && (
                                     <button onClick={() => handleMoveToAudience(speaker.id)} className="text-xs text-red-400 hover:underline">Move to Audience</button>
                                 )}
@@ -240,7 +277,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     </button>
                 )}
                 {isListener && (
-                    <button onClick={handleRaiseHand} disabled={hasRaisedHand} className="bg-lime-600 hover:bg-lime-500 font-bold py-3 px-6 rounded-lg text-lg disabled:bg-slate-500 text-black">
+                    <button onClick={handleRaiseHand} disabled={hasRaisedHand} className="bg-lime-600 hover:bg-lime-500 font-bold py-3 px-6 rounded-lg text-lg disabled:bg-slate-500 disabled:cursor-not-allowed text-black">
                         {hasRaisedHand ? 'Hand Raised ✋' : 'Raise Hand ✋'}
                     </button>
                 )}
