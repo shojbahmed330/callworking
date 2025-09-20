@@ -23,8 +23,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-
 
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -44,57 +42,91 @@ const AuthScreen: React.FC<AuthScreenProps> = ({
     setMode(AuthMode.LOGIN); 
   }, [onSetTtsMessage, initialAuthError, language]);
 
-  const resetState = () => {
-    setIdentifier('');
+  const resetSignupState = () => {
     setFullName('');
     setUsername('');
     setEmail('');
     setPassword('');
-    setConfirmPassword('');
     setAuthError('');
   };
 
-  const handleModeChange = (newMode: AuthMode) => {
-    resetState();
-    setMode(newMode);
-    if (newMode === AuthMode.LOGIN) {
-      onSetTtsMessage(getTtsPrompt('login_prompt', language));
-    } else {
-      onSetTtsMessage(getTtsPrompt('signup_fullname', language));
-    }
-  };
-  
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setAuthError('');
+  const handleTextInput = useCallback(async (text: string) => {
+      setIsLoading(true);
+      setAuthError('');
+      const cleanedText = text.trim();
 
-    try {
-      if (mode === AuthMode.LOGIN) {
-        await firebaseService.signInWithEmail(identifier, password);
-      } else { // Signup
-        if (password !== confirmPassword) {
-            throw new Error(getTtsPrompt('signup_password_mismatch', language));
+      try {
+        switch(mode) {
+            case AuthMode.LOGIN:
+                if (!identifier) {
+                    setIdentifier(cleanedText);
+                    onSetTtsMessage(getTtsPrompt('login_password', language));
+                } else {
+                    await firebaseService.signInWithEmail(identifier, cleanedText);
+                }
+                break;
+            case AuthMode.SIGNUP_FULLNAME:
+                setFullName(cleanedText);
+                setMode(AuthMode.SIGNUP_USERNAME);
+                onSetTtsMessage(getTtsPrompt('signup_username', language));
+                break;
+            case AuthMode.SIGNUP_USERNAME:
+                const formattedUsername = cleanedText.toLowerCase().replace(/\s/g, '');
+                const isTaken = await firebaseService.isUsernameTaken(formattedUsername);
+                if(isTaken) {
+                    onSetTtsMessage(getTtsPrompt('signup_username_invalid', language));
+                    setAuthError(getTtsPrompt('signup_username_invalid', language));
+                    break;
+                }
+                setUsername(formattedUsername);
+                setMode(AuthMode.SIGNUP_EMAIL);
+                onSetTtsMessage(getTtsPrompt('signup_email', language));
+                break;
+            case AuthMode.SIGNUP_EMAIL:
+                 const formattedEmail = cleanedText.toLowerCase().replace(/\s/g, '');
+                 if (!formattedEmail.includes('@') || !formattedEmail.includes('.')) {
+                    onSetTtsMessage("Please provide a valid email address.");
+                    setAuthError("Please provide a valid email address.");
+                    break;
+                 }
+                 setEmail(formattedEmail);
+                 setMode(AuthMode.SIGNUP_PASSWORD);
+                 onSetTtsMessage(getTtsPrompt('signup_password', language));
+                 break;
+            case AuthMode.SIGNUP_PASSWORD:
+                setPassword(cleanedText);
+                setMode(AuthMode.SIGNUP_CONFIRM_PASSWORD);
+                onSetTtsMessage(getTtsPrompt('signup_confirm_password', language));
+                break;
+            case AuthMode.SIGNUP_CONFIRM_PASSWORD:
+                if (password !== cleanedText) {
+                    onSetTtsMessage(getTtsPrompt('signup_password_mismatch', language));
+                    setAuthError(getTtsPrompt('signup_password_mismatch', language));
+                    setPassword('');
+                    setMode(AuthMode.SIGNUP_PASSWORD);
+                } else {
+                    const success = await firebaseService.signUpWithEmail(email, password, fullName, username);
+                    if (!success) {
+                        setAuthError("Could not create account. The email might be in use.");
+                        onSetTtsMessage("Could not create account. The email might be in use.");
+                        resetSignupState();
+                        setMode(AuthMode.LOGIN);
+                    }
+                }
+                break;
         }
-        const isTaken = await firebaseService.isUsernameTaken(username);
-        if(isTaken) {
-            throw new Error(getTtsPrompt('signup_username_invalid', language));
-        }
-        await firebaseService.signUpWithEmail(email, password, fullName, username);
+      } catch (error: any) {
+          console.error("Auth error:", error);
+          const errorMessage = error.message || "An unexpected error occurred.";
+          setAuthError(errorMessage);
+          onSetTtsMessage(errorMessage);
+          if (mode === AuthMode.LOGIN) {
+            setIdentifier('');
+          }
+      } finally {
+          setIsLoading(false);
       }
-    } catch (error: any) {
-        const errorMessage = error.message || "An unexpected error occurred.";
-        setAuthError(errorMessage);
-        onSetTtsMessage(errorMessage);
-    } finally {
-        setIsLoading(false);
-    }
-  };
-
-  const handleVoiceCommand = useCallback(async (text: string) => {
-      // This function can be expanded later if needed, but for now, form is primary
-      onSetTtsMessage("Please use the form to log in or sign up.");
-  }, [onSetTtsMessage]);
+  }, [mode, identifier, password, email, fullName, username, onSetTtsMessage, language]);
 
   useEffect(() => {
     if (!lastCommand) return;
@@ -103,67 +135,46 @@ const AuthScreen: React.FC<AuthScreenProps> = ({
     const isSignupCommand = ['sign up', 'signup', 'register'].includes(lastCommand.toLowerCase());
 
     if (isLoginCommand) {
-        handleModeChange(AuthMode.LOGIN);
+        resetSignupState();
+        setMode(AuthMode.LOGIN);
+        onSetTtsMessage(getTtsPrompt('login_prompt', language));
+        onCommandProcessed();
     } else if (isSignupCommand) {
-        handleModeChange(AuthMode.SIGNUP_FULLNAME); // Use a single mode for the signup form
+        resetSignupState();
+        setMode(AuthMode.SIGNUP_FULLNAME);
+        onSetTtsMessage(getTtsPrompt('signup_fullname', language));
+        onCommandProcessed();
     } else {
-        handleVoiceCommand(lastCommand);
+        handleTextInput(lastCommand).finally(onCommandProcessed);
     }
-    onCommandProcessed();
-  }, [lastCommand, onCommandProcessed, language]);
+  }, [lastCommand, handleTextInput, onSetTtsMessage, onCommandProcessed, language]);
   
+  const renderSignupProgress = () => {
+    if (mode === AuthMode.LOGIN) return null;
+    return (
+        <div className="mt-4 text-left text-sm space-y-1 p-3 border border-lime-500/20 rounded-md bg-gray-900/30">
+           {fullName && <p className="text-lime-400/80">Full Name: <span className="text-lime-300">{fullName}</span></p>}
+           {username && <p className="text-lime-400/80">Username: <span className="text-lime-300">@{username}</span></p>}
+           {email && <p className="text-lime-400/80">Email: <span className="text-lime-300">{email}</span></p>}
+           {password && <p className="text-lime-400/80">Password: <span className="text-lime-300">********</span></p>}
+        </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-full text-center text-lime-400 p-4 sm:p-8 bg-black">
+    <div className="flex flex-col items-center justify-center h-full text-center text-lime-400 p-4 sm:p-8 bg-black">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(57,255,20,0.3),rgba(255,255,255,0))] opacity-20 pointer-events-none"></div>
 
-      <div className="w-full max-w-sm">
-        <Icon name="logo" className="w-20 h-20 text-lime-400 mb-4 mx-auto text-shadow-lg" />
-        <h1 className="text-4xl font-bold mb-2 text-shadow-lg">VoiceBook</h1>
-        <p className="text-lime-400/80 mb-8">{mode === AuthMode.LOGIN ? 'Welcome Back' : 'Create an Account'}</p>
+      <Icon name="logo" className="w-24 h-24 text-lime-400 mb-4 text-shadow-lg" />
+      <h1 className="text-5xl font-bold mb-2 text-shadow-lg">VoiceBook</h1>
+      <p className="text-lime-400/80 mb-8 animate-pulse">[[ A U T H E N T I C A T E ]]</p>
       
-        <form onSubmit={handleFormSubmit} className="space-y-4 text-left">
-          {mode !== AuthMode.LOGIN && (
-            <>
-              <div>
-                <label className="text-sm font-medium text-lime-300/80">Full Name</label>
-                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-lime-500 focus:border-lime-500"/>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-lime-300/80">Username</label>
-                <input type="text" value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-lime-500 focus:border-lime-500"/>
-              </div>
-            </>
-          )}
-
-          <div>
-             <label className="text-sm font-medium text-lime-300/80">{mode === AuthMode.LOGIN ? 'Email or Username' : 'Email'}</label>
-             <input type="text" value={mode === AuthMode.LOGIN ? identifier : email} onChange={e => mode === AuthMode.LOGIN ? setIdentifier(e.target.value) : setEmail(e.target.value)} required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-lime-500 focus:border-lime-500"/>
-          </div>
-
-          <div>
-             <label className="text-sm font-medium text-lime-300/80">Password</label>
-             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-lime-500 focus:border-lime-500"/>
-          </div>
-          
-           {mode !== AuthMode.LOGIN && (
-             <div>
-                <label className="text-sm font-medium text-lime-300/80">Confirm Password</label>
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 mt-1 focus:ring-lime-500 focus:border-lime-500"/>
-             </div>
-           )}
-
-          {authError && <p className="text-red-400 text-sm text-center">{authError}</p>}
-          
-          <button type="submit" disabled={isLoading} className="w-full bg-lime-600 hover:bg-lime-500 text-black font-bold py-3 rounded-lg transition-colors disabled:bg-slate-600">
-            {isLoading ? 'Processing...' : (mode === AuthMode.LOGIN ? 'Log In' : 'Sign Up')}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-            <button onClick={() => handleModeChange(mode === AuthMode.LOGIN ? AuthMode.SIGNUP_FULLNAME : AuthMode.LOGIN)} className="text-sm text-lime-400/80 hover:text-lime-300 hover:underline">
-                {mode === AuthMode.LOGIN ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
-            </button>
+      <div className="w-full max-w-sm">
+        <div className="min-h-[3em]">
+          {isLoading && <p className="animate-pulse">Processing...</p>}
         </div>
+        {(mode > AuthMode.LOGIN) && renderSignupProgress()}
+        {(mode === AuthMode.LOGIN && identifier) && <p className="text-lime-400/70 text-sm mt-4">Logging in as: <span className="text-lime-300">{identifier}</span></p>}
       </div>
     </div>
   );

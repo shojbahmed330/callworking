@@ -1,7 +1,4 @@
-
-
 import React from 'react';
-// FIX: Corrected import path
 import { AppView, VoiceState } from '../types';
 import Icon from './Icon';
 import VoiceCommandInput from './VoiceCommandInput';
@@ -81,7 +78,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onNavigate, friendReq
                  <NavItem
                     iconName="message"
                     label="Messages"
-                    // FIX: Property 'MESSAGES' does not exist on type 'typeof AppView'. Corrected to CONVERSATIONS.
+                    // FIX: Property 'MESSAGES' does not exist on type 'typeof AppView'.
                     isActive={activeView === AppView.CONVERSATIONS}
                     onClick={() => onNavigate('messages')}
                 />

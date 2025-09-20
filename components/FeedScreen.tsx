@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -75,23 +72,8 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
       const adStory = await firebaseService.getInjectableStoryAd(currentUser);
   
       if (adStory) {
-          // FIX: The adStory.author is of type 'Author', but the state expects a 'User'.
-          // We create a User-like object from the Author and add dummy data for required fields.
-          const adAuthorAsUser: User = {
-              ...adStory.author,
-              email: '',
-              coverPhotoUrl: '',
-              bio: adStory.sponsorName || 'Sponsored Content',
-              friendIds: [],
-              blockedUserIds: [],
-              voiceCoins: 0,
-              role: 'user',
-              onlineStatus: 'online',
-              privacySettings: { postVisibility: 'public', friendRequestPrivacy: 'everyone', friendListVisibility: 'public' },
-              notificationSettings: { likes: true, comments: true, friendRequests: true, campaignUpdates: true, groupPosts: true },
-          };
           const adStoryGroup = {
-              author: adAuthorAsUser, // Use the converted User object
+              author: adStory.author,
               stories: [adStory],
               allViewed: false, // Doesn't apply to ads
           };
@@ -381,62 +363,62 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
     }
   }, [posts, isLoading]);
 
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
+          <SkeletonPostCard />
+          <SkeletonPostCard />
+          <SkeletonPostCard />
+      </div>
+    );
+  }
+
   return (
-    <div ref={feedContainerRef} className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6 py-6">
-        {isLoading ? (
-            <>
-                <SkeletonPostCard />
-                <SkeletonPostCard />
-                <SkeletonPostCard />
-            </>
-        ) : (
-            <>
-                <StoriesTray 
+    <div ref={feedContainerRef} className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
+        <StoriesTray 
+            currentUser={currentUser}
+            storiesByAuthor={storiesByAuthor}
+            onCreateStory={() => onNavigate(AppView.CREATE_STORY)}
+            onViewStories={(initialUserIndex) => onNavigate(AppView.STORY_VIEWER, { storiesByAuthor, initialUserIndex })}
+        />
+        <CreatePostWidget 
+            user={currentUser} 
+            onStartCreatePost={onStartCreatePost}
+        />
+        <div className="w-full border-t border-lime-500/20" />
+        <RewardedAdWidget campaign={rewardedCampaign} onAdClick={onRewardedAdClick} />
+        {posts.filter(Boolean).map((post, index) => (
+            <div 
+                key={`${post.id}-${index}`} 
+                className="w-full"
+                ref={el => { postRefs.current[index] = el; }}
+                data-index={index}
+            >
+                <PostCard 
+                    post={post} 
                     currentUser={currentUser}
-                    storiesByAuthor={storiesByAuthor}
-                    onCreateStory={() => onNavigate(AppView.CREATE_STORY)}
-                    onViewStories={(initialUserIndex) => onNavigate(AppView.STORY_VIEWER, { storiesByAuthor, initialUserIndex })}
+                    isActive={index === currentPostIndex}
+                    isPlaying={isPlaying && index === currentPostIndex}
+                    onPlayPause={() => {
+                        if (post.isSponsored && (post.videoUrl || post.imageUrl)) return;
+                        if (index === currentPostIndex) {
+                            setIsPlaying(p => !p)
+                        } else {
+                            isProgrammaticScroll.current = true;
+                            setCurrentPostIndex(index);
+                            setIsPlaying(true);
+                        }
+                    }}
+                    onReact={onReactToPost}
+                    onViewPost={onViewPost}
+                    onAuthorClick={onOpenProfile}
+                    onAdClick={onAdClick}
+                    onStartComment={onStartComment}
+                    onSharePost={onSharePost}
+                    onOpenPhotoViewer={onOpenPhotoViewer}
                 />
-                <CreatePostWidget 
-                    user={currentUser} 
-                    onStartCreatePost={onStartCreatePost}
-                />
-                <div className="w-full border-t border-lime-500/20" />
-                <RewardedAdWidget campaign={rewardedCampaign} onAdClick={onRewardedAdClick} />
-                {posts.filter(Boolean).map((post, index) => (
-                    <div 
-                        key={`${post.id}-${index}`} 
-                        className="w-full"
-                        ref={el => { postRefs.current[index] = el; }}
-                        data-index={index}
-                    >
-                        <PostCard 
-                            post={post} 
-                            currentUser={currentUser}
-                            isActive={index === currentPostIndex}
-                            isPlaying={isPlaying && index === currentPostIndex}
-                            onPlayPause={() => {
-                                if (post.isSponsored && (post.videoUrl || post.imageUrl)) return;
-                                if (index === currentPostIndex) {
-                                    setIsPlaying(p => !p)
-                                } else {
-                                    isProgrammaticScroll.current = true;
-                                    setCurrentPostIndex(index);
-                                    setIsPlaying(true);
-                                }
-                            }}
-                            onReact={onReactToPost}
-                            onViewPost={onViewPost}
-                            onAuthorClick={onOpenProfile}
-                            onAdClick={onAdClick}
-                            onStartComment={onStartComment}
-                            onSharePost={onSharePost}
-                            onOpenPhotoViewer={onOpenPhotoViewer}
-                        />
-                    </div>
-                ))}
-             </>
-        )}
+            </div>
+        ))}
     </div>
   );
 };

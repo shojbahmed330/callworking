@@ -24,13 +24,13 @@ const CreatePostWidget: React.FC<CreatePostWidgetProps> = ({ user, onStartCreate
           <Icon name="mic" className="w-6 h-6 text-lime-400" />
           <span className="font-semibold">Voice</span>
         </button>
-         <button onClick={() => onStartCreatePost()} className="flex items-center gap-2 text-lime-300 hover:bg-slate-800 px-4 py-2 rounded-lg transition-colors">
+         <button onClick={() => onStartCreatePost({ selectMedia: 'image' })} className="flex items-center gap-2 text-lime-300 hover:bg-slate-800 px-4 py-2 rounded-lg transition-colors">
             <Icon name="photo" className="w-6 h-6 text-lime-400"/> 
-            <span className="font-semibold">Photo/Video</span>
+            <span className="font-semibold">Photo</span>
         </button>
-         <button onClick={() => onStartCreatePost()} className="flex items-center gap-2 text-lime-300 hover:bg-slate-800 px-4 py-2 rounded-lg transition-colors">
-            <Icon name="face-smile" className="w-6 h-6 text-lime-400"/> 
-            <span className="font-semibold">Feeling</span>
+         <button onClick={() => onStartCreatePost({ selectMedia: 'video' })} className="flex items-center gap-2 text-lime-300 hover:bg-slate-800 px-4 py-2 rounded-lg transition-colors">
+            <Icon name="video-camera" className="w-6 h-6 text-lime-400"/> 
+            <span className="font-semibold">Video</span>
         </button>
       </div>
     </div>

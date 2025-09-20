@@ -1,8 +1,9 @@
 
+
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-// FIX: Corrected import path
 import { User } from '../types';
-// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
 import ImageCropper from './ImageCropper';
 

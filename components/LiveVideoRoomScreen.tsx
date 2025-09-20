@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { LiveVideoRoom, User, VideoParticipantState } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -234,19 +232,13 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Video Room...</div>;
     }
     
-    // FIX: Replaced the faulty logic that caused a type error.
-    // This new implementation correctly builds the participant map by iterating
-    // over remote participants first and then setting the state for the local user,
-    // avoiding attempts to access properties that don't exist on the base User type.
+    const allParticipants = [
+        ...room.participants,
+        { ...currentUser, isMuted, isCameraOff }
+    ];
+    
     const participantsMap = new Map<string, VideoParticipantState>();
-    room.participants.forEach(p => {
-        const remoteUser = remoteUsersMap[p.id];
-        participantsMap.set(p.id, {
-            ...p,
-            isMuted: remoteUser ? !remoteUser.hasAudio : true,
-            isCameraOff: remoteUser ? !remoteUser.hasVideo : true,
-        });
-    });
+    allParticipants.forEach(p => participantsMap.set(p.id, { ...p, isMuted: remoteUsersMap[p.id]?.audioTrack ? p.isMuted : true, isCameraOff: remoteUsersMap[p.id]?.videoTrack ? p.isCameraOff : true }));
     participantsMap.set(currentUser.id, { ...currentUser, isMuted, isCameraOff });
 
     const participantsWithLocal = Array.from(participantsMap.values())

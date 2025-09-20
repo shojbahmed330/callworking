@@ -1,6 +1,6 @@
 
+
 import React, { useRef, useEffect, useState } from 'react';
-// FIX: Corrected import path
 import { Post } from '../types';
 import Icon from './Icon';
 import Waveform from './Waveform';

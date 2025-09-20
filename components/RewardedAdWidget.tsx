@@ -1,6 +1,4 @@
-
 import React from 'react';
-// FIX: Corrected import path
 import { Campaign } from '../types';
 import Icon from './Icon';
 
