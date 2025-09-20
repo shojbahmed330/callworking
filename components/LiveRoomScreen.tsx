@@ -315,7 +315,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         </div>
                     </section>
 
-                    {isHost && raisedHandUsers.length > 0 && (
+                    {(isHost || isCoHost) && raisedHandUsers.length > 0 && (
                          <section>
                             <h2 className="text-lg font-semibold text-green-400 mb-4">Requests to Speak ({raisedHandUsers.length})</h2>
                             <div className="flex flex-wrap gap-6 bg-slate-800/50 p-4 rounded-lg">

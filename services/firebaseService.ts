@@ -1532,17 +1532,30 @@ async raiseHandInAudioRoom(userId: string, roomId: string): Promise<void> {
 },
 async inviteToSpeakInAudioRoom(hostId: string, userId: string, roomId: string): Promise<void> {
     const roomRef = db.collection('liveAudioRooms').doc(roomId);
-    const roomDoc = await roomRef.get();
-    if (roomDoc.exists && roomDoc.data().host.id === hostId) {
-        const listener = roomDoc.data().listeners.find(l => l.id === userId);
+    const managerId = hostId; // The user performing the action
+
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const isHost = roomData.host.id === managerId;
+        const isCoHost = roomData.coHostIds?.includes(managerId);
+
+        if (!isHost && !isCoHost) {
+            console.error(`Permission denied: User ${managerId} is not a host or co-host.`);
+            throw new Error("Permission denied to invite speaker.");
+        }
+
+        const listener = roomData.listeners.find(l => l.id === userId);
         if (listener) {
-            await roomRef.update({
+            transaction.update(roomRef, {
                 listeners: arrayRemove(listener),
                 speakers: arrayUnion(listener),
                 raisedHands: arrayRemove(userId),
             });
         }
-    }
+    });
 },
 async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string): Promise<void> {
     const roomRef = db.collection('liveAudioRooms').doc(roomId);
@@ -1569,7 +1582,6 @@ async sendAudioRoomMessage(roomId: string, sender: User, text: string): Promise<
         messages: arrayUnion(message)
     });
 },
-// @FIXML-FIX-START
 async kickUserFromRoom(roomId: string, managerId: string, targetUserId: string): Promise<void> {
     const roomRef = db.collection('liveAudioRooms').doc(roomId);
     await db.runTransaction(async (transaction) => {
