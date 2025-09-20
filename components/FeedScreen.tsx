@@ -1,19 +1,13 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-// FIX: Corrected import path
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
 import CreatePostWidget from './CreatePostWidget';
 import SkeletonPostCard from './SkeletonPostCard';
-// FIX: Corrected import path
 import { geminiService } from '../services/geminiService';
 import RewardedAdWidget from './RewardedAdWidget';
-// FIX: Corrected import path
 import { getTtsPrompt } from '../constants';
 import StoriesTray from './StoriesTray';
-// FIX: Corrected import path
 import { firebaseService } from '../services/firebaseService';
-// FIX: Corrected import path
 import { useSettings } from '../contexts/SettingsContext';
 
 interface FeedScreenProps {
@@ -369,62 +363,62 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
     }
   }, [posts, isLoading]);
 
-  if (isLoading) {
-    return (
-      <div className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
-          <SkeletonPostCard />
-          <SkeletonPostCard />
-          <SkeletonPostCard />
-      </div>
-    );
-  }
-
   return (
-    <div ref={feedContainerRef} className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
-        <StoriesTray 
-            currentUser={currentUser}
-            storiesByAuthor={storiesByAuthor}
-            onCreateStory={() => onNavigate(AppView.CREATE_STORY)}
-            onViewStories={(initialUserIndex) => onNavigate(AppView.STORY_VIEWER, { storiesByAuthor, initialUserIndex })}
-        />
-        <CreatePostWidget 
-            user={currentUser} 
-            onStartCreatePost={onStartCreatePost}
-        />
-        <div className="w-full border-t border-lime-500/20" />
-        <RewardedAdWidget campaign={rewardedCampaign} onAdClick={onRewardedAdClick} />
-        {posts.filter(Boolean).map((post, index) => (
-            <div 
-                key={`${post.id}-${index}`} 
-                className="w-full"
-                ref={el => { postRefs.current[index] = el; }}
-                data-index={index}
-            >
-                <PostCard 
-                    post={post} 
+    <div ref={feedContainerRef} className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6 py-6">
+        {isLoading ? (
+            <>
+                <SkeletonPostCard />
+                <SkeletonPostCard />
+                <SkeletonPostCard />
+            </>
+        ) : (
+            <>
+                <StoriesTray 
                     currentUser={currentUser}
-                    isActive={index === currentPostIndex}
-                    isPlaying={isPlaying && index === currentPostIndex}
-                    onPlayPause={() => {
-                        if (post.isSponsored && (post.videoUrl || post.imageUrl)) return;
-                        if (index === currentPostIndex) {
-                            setIsPlaying(p => !p)
-                        } else {
-                            isProgrammaticScroll.current = true;
-                            setCurrentPostIndex(index);
-                            setIsPlaying(true);
-                        }
-                    }}
-                    onReact={onReactToPost}
-                    onViewPost={onViewPost}
-                    onAuthorClick={onOpenProfile}
-                    onAdClick={onAdClick}
-                    onStartComment={onStartComment}
-                    onSharePost={onSharePost}
-                    onOpenPhotoViewer={onOpenPhotoViewer}
+                    storiesByAuthor={storiesByAuthor}
+                    onCreateStory={() => onNavigate(AppView.CREATE_STORY)}
+                    onViewStories={(initialUserIndex) => onNavigate(AppView.STORY_VIEWER, { storiesByAuthor, initialUserIndex })}
                 />
-            </div>
-        ))}
+                <CreatePostWidget 
+                    user={currentUser} 
+                    onStartCreatePost={onStartCreatePost}
+                />
+                <div className="w-full border-t border-lime-500/20" />
+                <RewardedAdWidget campaign={rewardedCampaign} onAdClick={onRewardedAdClick} />
+                {posts.filter(Boolean).map((post, index) => (
+                    <div 
+                        key={`${post.id}-${index}`} 
+                        className="w-full"
+                        ref={el => { postRefs.current[index] = el; }}
+                        data-index={index}
+                    >
+                        <PostCard 
+                            post={post} 
+                            currentUser={currentUser}
+                            isActive={index === currentPostIndex}
+                            isPlaying={isPlaying && index === currentPostIndex}
+                            onPlayPause={() => {
+                                if (post.isSponsored && (post.videoUrl || post.imageUrl)) return;
+                                if (index === currentPostIndex) {
+                                    setIsPlaying(p => !p)
+                                } else {
+                                    isProgrammaticScroll.current = true;
+                                    setCurrentPostIndex(index);
+                                    setIsPlaying(true);
+                                }
+                            }}
+                            onReact={onReactToPost}
+                            onViewPost={onViewPost}
+                            onAuthorClick={onOpenProfile}
+                            onAdClick={onAdClick}
+                            onStartComment={onStartComment}
+                            onSharePost={onSharePost}
+                            onOpenPhotoViewer={onOpenPhotoViewer}
+                        />
+                    </div>
+                ))}
+             </>
+        )}
     </div>
   );
 };

@@ -1,4 +1,3 @@
-
 // --- Enums ---
 export enum AppView {
   AUTH, FEED, PROFILE, POST_DETAIL, CREATE_POST, SETTINGS, FRIENDS, CONVERSATIONS, MESSAGE,
@@ -373,4 +372,15 @@ export interface Call {
   status: 'dialing' | 'ringing' | 'connected' | 'ended' | 'missed' | 'declined';
   startedAt: string;
   endedAt?: string;
+  duration?: number; // in seconds
+}
+
+export interface CallHistoryEntry {
+    id: string;
+    peer: User;
+    type: 'audio' | 'video';
+    direction: 'incoming' | 'outgoing';
+    status: 'completed' | 'missed' | 'declined';
+    timestamp: string;
+    duration?: number; // in seconds
 }
