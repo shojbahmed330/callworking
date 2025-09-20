@@ -117,7 +117,7 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
     
     const handleTextModeSelect = () => {
         setEditorMode('text');
-        setText('Fine'); // Set default text as in screenshot
+        setText('Start Typing...');
         setMediaFile(null);
         setMediaPreview(null);
         setView('editor');
@@ -151,7 +151,6 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
             ? 'video' 
             : 'image';
             
-        // FIX: Pass mediaFile as the second argument to createStory, not inside the first object.
         const newStory = await geminiService.createStory({
             author: currentUser,
             type: storyType,
@@ -177,11 +176,9 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
             const intentResponse = await geminiService.processIntent(lastCommand);
             const { intent, slots } = intentResponse;
 
-            // Universal commands that can be triggered from gallery or editor
             if (intent === 'intent_add_text_to_story') {
                 const newText = slots?.text as string;
                 if (newText) {
-                    // This command forces a switch to the text editor
                     if (view !== 'editor' || editorMode !== 'text') {
                         setEditorMode('text');
                         setMediaFile(null);
@@ -210,7 +207,6 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
                  return;
             }
 
-            // Editor-only commands
             if (view === 'editor') {
                 switch (intent) {
                     case 'intent_add_music':
