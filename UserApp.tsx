@@ -386,7 +386,9 @@ const UserApp: React.FC = () => {
     const unsubscribeFriendRequests = firebaseService.listenToFriendRequests(user.id, setFriendRequests);
     unsubscribes.push(unsubscribeFriendRequests);
 
-    const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, setNotifications);
+    // FIX: The type of `setNotifications` (a React state setter) doesn't match the expected callback type.
+    // Wrap it in an arrow function to satisfy the type checker.
+    const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, (newNotifications) => setNotifications(newNotifications));
     unsubscribes.push(unsubscribeNotifications);
     
     const unsubscribeCalls = firebaseService.listenForIncomingCalls(user.id, (call) => {

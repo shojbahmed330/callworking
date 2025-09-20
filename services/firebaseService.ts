@@ -519,10 +519,3 @@ export const firebaseService = {
     },
     // The rest of the functions are omitted for brevity but would follow the same Firebase interaction patterns.
 };
-// Add placeholder functions for any missing implementations to avoid runtime errors
-const placeholder = () => { console.warn("Firebase function not fully implemented"); return Promise.resolve(null); };
-Object.keys(geminiService).forEach(key => {
-    if (typeof (firebaseService as any)[key] === 'undefined') {
-        (firebaseService as any)[key] = placeholder;
-    }
-});
