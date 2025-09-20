@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from './Icon';
 // FIX: Corrected import path
@@ -21,6 +22,8 @@ interface SettingsScreenProps {
   onSetTtsMessage: (message: string) => void;
   scrollState: ScrollState;
   onCommandProcessed: () => void;
+  // FIX: Add missing onGoBack prop to satisfy type requirements in UserApp.tsx
+  onGoBack: () => void;
 }
 
 // FIX: Add export to the component declaration

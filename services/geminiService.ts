@@ -205,6 +205,7 @@ export const geminiService = {
   },
 
   // --- Friends ---
+  // FIX: Implement missing firebaseService calls
   getFriendRequests: (userId: string): Promise<User[]> => firebaseService.getFriendRequests(userId),
   acceptFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.acceptFriendRequest(currentUserId, requestingUserId),
   declineFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.declineFriendRequest(currentUserId, requestingUserId),
@@ -215,6 +216,7 @@ export const geminiService = {
 
   // --- This is a mock/simulated function ---
   async getRecommendedFriends(userId: string): Promise<User[]> {
+      // FIX: Implement missing firebaseService calls
       const allUsers = await firebaseService.getAllUsersForAdmin();
       const currentUser = allUsers.find(u => u.id === userId);
       if (!currentUser) return [];
@@ -242,6 +244,7 @@ export const geminiService = {
     return firebaseService.getUserProfileById(userId);
   },
   
+  // FIX: Implement missing firebaseService calls
   async searchUsers(query: string): Promise<User[]> {
     return firebaseService.searchUsers(query);
   },
@@ -405,6 +408,7 @@ export const geminiService = {
     },
 
     // --- Rooms ---
+    // FIX: Implement missing firebaseService calls
     listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void) => firebaseService.listenToLiveAudioRooms(callback),
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
     listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),
@@ -423,64 +427,69 @@ export const geminiService = {
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
     
     // --- Ads & Campaigns ---
+    // FIX: Implement missing firebaseService calls
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),
     submitCampaignForApproval: (campaignData: Omit<Campaign, 'id'|'views'|'clicks'|'status'|'transactionId'>, transactionId: string) => firebaseService.submitCampaignForApproval(campaignData, transactionId),
     getRandomActiveCampaign: () => firebaseService.getRandomActiveCampaign(),
 
     // --- Stories ---
+    // FIX: Implement missing firebaseService calls
     getStories: (currentUserId: string) => firebaseService.getStories(currentUserId),
     markStoryAsViewed: (storyId: string, userId: string) => firebaseService.markStoryAsViewed(storyId, userId),
-    createStory: (storyData, mediaFile) => firebaseService.createStory(storyData, mediaFile),
+    createStory: (storyData: any, mediaFile: any) => firebaseService.createStory(storyData, mediaFile),
     
     // --- Groups ---
+    // FIX: Implement missing firebaseService calls
     getGroupById: (groupId: string) => firebaseService.getGroupById(groupId),
     getSuggestedGroups: (userId: string) => firebaseService.getSuggestedGroups(userId),
-    createGroup: (creator, name, description, coverPhotoUrl, privacy, requiresApproval, category) => firebaseService.createGroup(creator, name, description, coverPhotoUrl, privacy, requiresApproval, category),
-    joinGroup: (userId, groupId, answers) => firebaseService.joinGroup(userId, groupId, answers),
-    leaveGroup: (userId, groupId) => firebaseService.leaveGroup(userId, groupId),
-    getPostsForGroup: (groupId) => firebaseService.getPostsForGroup(groupId),
-    updateGroupSettings: (groupId, settings) => firebaseService.updateGroupSettings(groupId, settings),
-    pinPost: (groupId, postId) => firebaseService.pinPost(groupId, postId),
-    unpinPost: (groupId) => firebaseService.unpinPost(groupId),
-    voteOnPoll: (userId, postId, optionIndex) => firebaseService.voteOnPoll(userId, postId, optionIndex),
-    markBestAnswer: (userId, postId, commentId) => firebaseService.markBestAnswer(userId, postId, commentId),
-    inviteFriendToGroup: (groupId, friendId) => firebaseService.inviteFriendToGroup(groupId, friendId),
+    createGroup: (creator: any, name: any, description: any, coverPhotoUrl: any, privacy: any, requiresApproval: any, category: any) => firebaseService.createGroup(creator, name, description, coverPhotoUrl, privacy, requiresApproval, category),
+    joinGroup: (userId: any, groupId: any, answers: any) => firebaseService.joinGroup(userId, groupId, answers),
+    leaveGroup: (userId: any, groupId: any) => firebaseService.leaveGroup(userId, groupId),
+    getPostsForGroup: (groupId: any) => firebaseService.getPostsForGroup(groupId),
+    updateGroupSettings: (groupId: any, settings: any) => firebaseService.updateGroupSettings(groupId, settings),
+    pinPost: (groupId: any, postId: any) => firebaseService.pinPost(groupId, postId),
+    unpinPost: (groupId: any) => firebaseService.unpinPost(groupId),
+    voteOnPoll: (userId: any, postId: any, optionIndex: any) => firebaseService.voteOnPoll(userId, postId, optionIndex),
+    markBestAnswer: (userId: any, postId: any, commentId: any) => firebaseService.markBestAnswer(userId, postId, commentId),
+    inviteFriendToGroup: (groupId: any, friendId: any) => firebaseService.inviteFriendToGroup(groupId, friendId),
     
     // --- Group Chat & Events ---
+    // FIX: Implement missing firebaseService calls
     getGroupChat: (groupId: string) => firebaseService.getGroupChat(groupId),
-    sendGroupChatMessage: (groupId, sender, text) => firebaseService.sendGroupChatMessage(groupId, sender, text),
+    sendGroupChatMessage: (groupId: any, sender: any, text: any) => firebaseService.sendGroupChatMessage(groupId, sender, text),
     getGroupEvents: (groupId: string) => firebaseService.getGroupEvents(groupId),
-    createGroupEvent: (creator, groupId, title, description, date) => firebaseService.createGroupEvent(creator, groupId, title, description, date),
-    rsvpToEvent: (userId, eventId) => firebaseService.rsvpToEvent(userId, eventId),
+    createGroupEvent: (creator: any, groupId: any, title: any, description: any, date: any) => firebaseService.createGroupEvent(creator, groupId, title, description, date),
+    rsvpToEvent: (userId: any, eventId: any) => firebaseService.rsvpToEvent(userId, eventId),
     
     // --- Admin Panel ---
-    adminLogin: (email, password) => firebaseService.adminLogin(email, password),
-    adminRegister: (email, password) => firebaseService.adminRegister(email, password),
+    // FIX: Implement missing firebaseService calls
+    adminLogin: (email: any, password: any) => firebaseService.adminLogin(email, password),
+    adminRegister: (email: any, password: any) => firebaseService.adminRegister(email, password),
     getAdminDashboardStats: () => firebaseService.getAdminDashboardStats(),
     getAllUsersForAdmin: () => firebaseService.getAllUsersForAdmin(),
-    updateUserRole: (userId, newRole) => firebaseService.updateUserRole(userId, newRole),
+    updateUserRole: (userId: any, newRole: any) => firebaseService.updateUserRole(userId, newRole),
     getPendingCampaigns: () => firebaseService.getPendingCampaigns(),
-    approveCampaign: (campaignId) => firebaseService.approveCampaign(campaignId),
-    rejectCampaign: (campaignId, reason) => firebaseService.rejectCampaign(campaignId, reason),
+    approveCampaign: (campaignId: any) => firebaseService.approveCampaign(campaignId),
+    rejectCampaign: (campaignId: any, reason: any) => firebaseService.rejectCampaign(campaignId, reason),
     getAllPostsForAdmin: () => firebaseService.getAllPostsForAdmin(),
-    deletePostAsAdmin: (postId) => firebaseService.deletePostAsAdmin(postId),
-    deleteCommentAsAdmin: (commentId, postId) => firebaseService.deleteCommentAsAdmin(commentId, postId),
-    getPostById: (postId) => firebaseService.getPostById(postId),
+    deletePostAsAdmin: (postId: any) => firebaseService.deletePostAsAdmin(postId),
+    deleteCommentAsAdmin: (commentId: any, postId: any) => firebaseService.deleteCommentAsAdmin(commentId, postId),
+    getPostById: (postId: any) => firebaseService.getPostById(postId),
     getPendingReports: () => firebaseService.getPendingReports(),
-    resolveReport: (reportId, resolution) => firebaseService.resolveReport(reportId, resolution),
-    banUser: (userId) => firebaseService.banUser(userId),
-    unbanUser: (userId) => firebaseService.unbanUser(userId),
-    warnUser: (userId, message) => firebaseService.warnUser(userId, message),
-    suspendUserCommenting: (userId, days) => firebaseService.suspendUserCommenting(userId, days),
-    liftUserCommentingSuspension: (userId) => firebaseService.liftUserCommentingSuspension(userId),
-    suspendUserPosting: (userId, days) => firebaseService.suspendUserPosting(userId, days),
-    liftUserPostingSuspension: (userId) => firebaseService.liftUserPostingSuspension(userId),
-    getUserDetailsForAdmin: (userId) => firebaseService.getUserDetailsForAdmin(userId),
-    sendSiteWideAnnouncement: (message) => firebaseService.sendSiteWideAnnouncement(message),
+    resolveReport: (reportId: any, resolution: any) => firebaseService.resolveReport(reportId, resolution),
+    banUser: (userId: any) => firebaseService.banUser(userId),
+    unbanUser: (userId: any) => firebaseService.unbanUser(userId),
+    warnUser: (userId: any, message: any) => firebaseService.warnUser(userId, message),
+    suspendUserCommenting: (userId: any, days: any) => firebaseService.suspendUserCommenting(userId, days),
+    liftUserCommentingSuspension: (userId: any) => firebaseService.liftUserCommentingSuspension(userId),
+    suspendUserPosting: (userId: any, days: any) => firebaseService.suspendUserPosting(userId, days),
+    liftUserPostingSuspension: (userId: any) => firebaseService.liftUserPostingSuspension(userId),
+    getUserDetailsForAdmin: (userId: any) => firebaseService.getUserDetailsForAdmin(userId),
+    sendSiteWideAnnouncement: (message: any) => firebaseService.sendSiteWideAnnouncement(message),
     getAllCampaignsForAdmin: () => firebaseService.getAllCampaignsForAdmin(),
-    verifyCampaignPayment: (campaignId, adminId) => firebaseService.verifyCampaignPayment(campaignId, adminId),
-    adminUpdateUserProfilePicture: (userId, base64) => firebaseService.adminUpdateUserProfilePicture(userId, base64),
-    reactivateUserAsAdmin: (userId) => firebaseService.reactivateUserAsAdmin(userId),
+    verifyCampaignPayment: (campaignId: any, adminId: any) => firebaseService.verifyCampaignPayment(campaignId, adminId),
+    adminUpdateUserProfilePicture: (userId: any, base64: any) => firebaseService.adminUpdateUserProfilePicture(userId, base64),
+    reactivateUserAsAdmin: (userId: any) => firebaseService.reactivateUserAsAdmin(userId),
     promoteGroupMember: (groupId: string, userToPromote: User, newRole: 'Admin' | 'Moderator') => firebaseService.promoteGroupMember(groupId, userToPromote, newRole),
     demoteGroupMember: (groupId: string, userToDemote: User, oldRole: 'Admin' | 'Moderator') => firebaseService.demoteGroupMember(groupId, userToDemote, oldRole),
     removeGroupMember: (groupId: string, userToRemove: User) => firebaseService.removeGroupMember(groupId, userToRemove),
@@ -489,6 +498,7 @@ export const geminiService = {
     approvePost: (postId: string) => firebaseService.approvePost(postId),
     rejectPost: (postId: string) => firebaseService.rejectPost(postId),
     async getCategorizedExploreFeed(userId: string): Promise<CategorizedExploreFeed> {
+        // FIX: Implement missing firebaseService call
         const posts = await firebaseService.getExplorePosts(userId);
         if (posts.length === 0) {
             return { trending: [], forYou: [], questions: [], funnyVoiceNotes: [], newTalent: [] };
@@ -534,7 +544,7 @@ export const geminiService = {
     },
     
     // --- 1-on-1 Calls ---
-    createCall: (caller, callee, chatId, type) => firebaseService.createCall(caller, callee, chatId, type),
+    createCall: (caller: any, callee: any, chatId: any, type: any) => firebaseService.createCall(caller, callee, chatId, type),
     listenForIncomingCalls: (userId, callback) => firebaseService.listenForIncomingCalls(userId, callback),
     listenToCall: (callId, callback) => firebaseService.listenToCall(callId, callback),
     updateCallStatus: (callId, status) => firebaseService.updateCallStatus(callId, status),

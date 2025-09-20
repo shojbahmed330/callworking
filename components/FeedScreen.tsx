@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -72,8 +74,23 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
       const adStory = await firebaseService.getInjectableStoryAd(currentUser);
   
       if (adStory) {
+          // FIX: The adStory.author is of type 'Author', but the state expects a 'User'.
+          // We create a User-like object from the Author and add dummy data for required fields.
+          const adAuthorAsUser: User = {
+              ...adStory.author,
+              email: '',
+              coverPhotoUrl: '',
+              bio: adStory.sponsorName || 'Sponsored Content',
+              friendIds: [],
+              blockedUserIds: [],
+              voiceCoins: 0,
+              role: 'user',
+              onlineStatus: 'online',
+              privacySettings: { postVisibility: 'public', friendRequestPrivacy: 'everyone', friendListVisibility: 'public' },
+              notificationSettings: { likes: true, comments: true, friendRequests: true, campaignUpdates: true, groupPosts: true },
+          };
           const adStoryGroup = {
-              author: adStory.author,
+              author: adAuthorAsUser, // Use the converted User object
               stories: [adStory],
               allViewed: false, // Doesn't apply to ads
           };

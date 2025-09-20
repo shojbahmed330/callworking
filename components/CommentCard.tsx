@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 // FIX: Corrected import path
 import type { Comment, User } from '../types';
@@ -17,7 +18,6 @@ interface CommentCardProps {
   // @FIXML-FIX-212: Add optional onEdit and onDelete props
   onEdit?: (commentId: string, newText: string) => void;
   onDelete?: (commentId: string) => void;
-  // @FIXML-FIX-224: Add optional isReply prop
   isReply?: boolean;
 }
 
