@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RecordingState, User, Post } from './types';
+import { RecordingState, User, Post } from '../types';
 import { IMAGE_GENERATION_COST, getTtsPrompt } from '../constants';
 import Icon from './Icon';
 import { geminiService } from '../services/geminiService';
@@ -226,7 +226,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     };
 
     const renderAudioView = () => (
-        <div className="w-full flex flex-col items-center justify-center p-4">
+        <div className="w-full flex flex-col items-center justify-center p-4 min-h-[250px]">
             {recordingState === RecordingState.RECORDING && (
                 <>
                     <div className="w-full h-24">
@@ -247,8 +247,15 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
                     </div>
                 </div>
             )}
+            {recordingState === RecordingState.IDLE && (
+                <div className="text-center text-slate-400">
+                    <Icon name="mic" className="w-12 h-12 mx-auto animate-pulse text-rose-400"/>
+                    <p className="mt-2 font-semibold">Initializing microphone...</p>
+                    <p className="text-sm mt-1">Please allow microphone access if prompted.</p>
+                </div>
+            )}
         </div>
-    )
+    );
 
     const renderMainView = () => (
         <>
@@ -354,7 +361,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
             )}
             <div onClick={e => e.stopPropagation()}>
                 {subView === 'feelings' ? renderFeelingsView() : (
-                    <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-7xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh]`}>
+                    <div className={`w-full ${uploadedImagePreview ? 'max-w-3xl' : 'max-w-7xl'} bg-slate-800 rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto`}>
                          <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-center relative">
                             <h2 className="text-xl font-bold text-slate-100">Create post</h2>
                             <button onClick={onGoBack} className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-full">
