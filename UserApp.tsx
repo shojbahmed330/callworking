@@ -157,7 +157,7 @@ const UserApp: React.FC = () => {
   const [campaignForAd, setCampaignForAd] = useState<Campaign | null>(null);
   const [viewingAd, setViewingAd] = useState<Post | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceState>(VoiceState.IDLE);
-  const [ttsMessage, setTtsMessage] = useState<string>('');
+  const [ttsMessage, setTtsMessage] = useState<string>('Say a command...');
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [scrollState, setScrollState] = useState<ScrollState>('none');
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');

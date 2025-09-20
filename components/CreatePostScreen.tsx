@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, Post, RecordingState } from '../types';
+import { RecordingState, User, Post } from './types';
 import { IMAGE_GENERATION_COST, getTtsPrompt } from '../constants';
 import Icon from './Icon';
 import { geminiService } from '../services/geminiService';
@@ -342,7 +342,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ currentUser, onPost
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-fade-in-fast" onClick={onGoBack}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in-fast" onClick={onGoBack}>
              {imageToCrop && (
                 <ImageCropper
                     imageUrl={imageToCrop}
