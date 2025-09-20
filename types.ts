@@ -245,6 +245,13 @@ export interface Campaign {
   };
 }
 
+export interface RoomMessage {
+  id: string;
+  sender: Author;
+  text: string;
+  createdAt: string; // ISO string
+}
+
 export interface LiveAudioRoom {
   id: string;
   host: User;
@@ -254,6 +261,10 @@ export interface LiveAudioRoom {
   raisedHands: string[]; // Array of user IDs
   createdAt: string;
   status: 'live' | 'ended';
+  // New features
+  privacy?: 'public' | 'private' | 'friends-only';
+  password?: string;
+  messages?: RoomMessage[];
 }
 
 export interface VideoParticipantState extends User {

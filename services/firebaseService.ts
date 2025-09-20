@@ -1424,7 +1424,7 @@ listenToRoom(roomId: string, type: 'audio' | 'video', callback: (room: LiveAudio
         }
     });
 },
-async createLiveAudioRoom(host: User, topic: string): Promise<LiveAudioRoom> {
+async createLiveAudioRoom(host: User, topic: string, privacy: 'public' | 'private' | 'friends-only' = 'public', password?: string): Promise<LiveAudioRoom> {
     const newRoomData = {
         host: { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl },
         topic,
@@ -1433,6 +1433,9 @@ async createLiveAudioRoom(host: User, topic: string): Promise<LiveAudioRoom> {
         raisedHands: [],
         createdAt: serverTimestamp(),
         status: 'live',
+        privacy,
+        password: privacy === 'private' ? password : null,
+        messages: [],
     };
     const docRef = await db.collection('liveAudioRooms').add(newRoomData);
     const doc = await docRef.get();
@@ -1553,6 +1556,18 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             });
         }
     }
+},
+async sendAudioRoomMessage(roomId: string, sender: User, text: string): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    const message = {
+        id: db.collection('users').doc().id, // simple unique id
+        sender: { id: sender.id, name: sender.name, username: sender.username, avatarUrl: sender.avatarUrl },
+        text,
+        createdAt: new Date().toISOString()
+    };
+    await roomRef.update({
+        messages: arrayUnion(message)
+    });
 },
 
     // --- Campaigns, Stories, Groups, Admin, etc. ---
