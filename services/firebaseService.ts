@@ -147,6 +147,17 @@ export const firebaseService = {
         });
     },
 
+    listenToUserProfile: (username: string, callback: (user: User | null) => void): (() => void) => {
+        return db.collection('users').where('username', '==', username).onSnapshot(snapshot => {
+            if (snapshot.empty) {
+                callback(null);
+            } else {
+                const doc = snapshot.docs[0];
+                callback({ id: doc.id, ...doc.data() } as User);
+            }
+        });
+    },
+
     updateUserOnlineStatus: (userId: string, status: 'online' | 'offline'): Promise<void> => {
         return db.collection('users').doc(userId).update({
             onlineStatus: status,
@@ -539,6 +550,11 @@ export const firebaseService = {
         return db.collection('leads').add(leadData);
     },
     
+    getLeadsForCampaign: async (campaignId: string): Promise<Lead[]> => {
+        const snapshot = await db.collection('leads').where('campaignId', '==', campaignId).orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead));
+    },
+
     // --- AGORA TOKEN ---
     getAgoraToken: async (channelName: string, uid: string | number): Promise<string | null> => {
         try {
@@ -552,6 +568,30 @@ export const firebaseService = {
         } catch (error) {
             console.error("Error fetching Agora token:", error);
             return null;
+        }
+    },
+    
+    updateSpeakerState: async (roomId: string, speakerId: string, newState: Partial<Speaker>): Promise<boolean> => {
+        const roomRef = db.collection('liveAudioRooms').doc(roomId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists) {
+                    throw "Room does not exist!";
+                }
+                const roomData = roomDoc.data() as LiveAudioRoom;
+                const speakerIndex = roomData.speakers.findIndex(s => s.id === speakerId);
+
+                if (speakerIndex !== -1) {
+                    const newSpeakers = [...roomData.speakers];
+                    newSpeakers[speakerIndex] = { ...newSpeakers[speakerIndex], ...newState };
+                    transaction.update(roomRef, { speakers: newSpeakers });
+                }
+            });
+            return true;
+        } catch (error) {
+            console.error("Firebase transaction failed to update speaker state: ", error);
+            return false;
         }
     },
 
