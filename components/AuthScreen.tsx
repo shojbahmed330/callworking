@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-// FIX: Corrected import paths for a component-level file
 import { AuthMode } from '../types';
 import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';

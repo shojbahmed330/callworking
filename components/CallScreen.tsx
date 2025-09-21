@@ -27,11 +27,13 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const localVideoTrack = useRef<ICameraVideoTrack | null>(null);
+    // FIX: Add state for local video track to fix undefined 'setLocalVideoTrackState' error.
     const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null);
     const [remoteUser, setRemoteUser] = useState<IAgoraRTCRemoteUser | null>(null);
 
     const localVideoRef = useRef<HTMLDivElement>(null);
     const remoteVideoRef = useRef<HTMLDivElement>(null);
+    // FIX: Replace NodeJS.Timeout with number for browser compatibility.
     const timerIntervalRef = useRef<number | null>(null);
     const callStatusRef = useRef<Call['status'] | null>(null);
 
@@ -41,7 +43,10 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             setCall(liveCall);
             callStatusRef.current = liveCall?.status || null;
             if (!liveCall || ['ended', 'declined', 'missed'].includes(liveCall.status)) {
+                // Add a small delay to allow the user to see the final status message
                 setTimeout(() => {
+                    // This check prevents a crash if the component is already unmounted
+                    // when the timeout fires, which can happen in rapid state changes.
                     if (callStatusRef.current !== 'active' && callStatusRef.current !== 'ringing') {
                         onGoBack();
                     }
@@ -78,6 +83,35 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
         }
     }, [isCaller, call?.status, callId]);
 
+    // Token Renewal Effect to prevent call drops
+    useEffect(() => {
+        // FIX: Replace NodeJS.Timeout with number for browser compatibility.
+        let renewalInterval: number | null = null;
+        if (call?.status === 'active') {
+            renewalInterval = window.setInterval(async () => {
+                try {
+                    console.log("Renewing Agora token...");
+                    const uid = parseInt(currentUser.id, 36) % 10000000;
+                    const newToken = await geminiService.getAgoraToken(callId, uid);
+                    if (newToken && agoraClient.current) {
+                        await agoraClient.current.renewToken(newToken);
+                        console.log("Agora token renewed successfully.");
+                    } else {
+                        console.error("Failed to get new token for renewal.");
+                    }
+                } catch (error) {
+                    console.error("Error renewing Agora token:", error);
+                }
+            }, 45000); 
+        }
+
+        return () => {
+            if (renewalInterval) {
+                clearInterval(renewalInterval);
+            }
+        };
+    }, [call?.status, callId, currentUser.id]);
+
     const handleHangUp = useCallback(() => {
         if (callStatusRef.current === 'ringing' && !isCaller) {
              firebaseService.updateCallStatus(callId, 'declined');
@@ -108,15 +142,20 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 firebaseService.updateCallStatus(callId, 'ended');
             });
             
-            const uid = currentUser.id;
-
+            // Join the Agora channel first
+            const uid = parseInt(currentUser.id, 36) % 10000000;
             const token = await geminiService.getAgoraToken(callId, uid);
             if (!token) {
-                throw new Error("Failed to retrieve Agora token.");
+                throw new Error("Failed to retrieve Agora token. The call cannot proceed.");
             }
             await client.join(AGORA_APP_ID, callId, token, uid);
 
+            // **Graceful Media Initialization**
+            // Now, try to get local media, but catch errors if devices are not found.
             try {
+                // @FIX: The original code passed an invalid constraints object to Agora.
+                // This has been refactored to create tracks conditionally based on the call type,
+                // which is the correct way to handle audio-only vs video calls.
                 const tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [];
                 
                 if (callType === 'video') {
@@ -128,7 +167,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                     if (localVideoRef.current) {
                         videoTrack.play(localVideoRef.current);
                     }
-                } else { 
+                } else { // audio call
                     const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
                     localAudioTrack.current = audioTrack;
                     tracksToPublish.push(audioTrack);
@@ -141,10 +180,12 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             } catch (error: any) {
                  console.warn("Could not get local media tracks:", error);
                  onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
+                 // Update UI to show devices are unavailable
                  setIsMicAvailable(false);
                  setIsCamAvailable(false);
                  setIsMuted(true);
                  setIsCameraOff(true);
+                 // The call continues in listen-only mode.
             }
         };
 
@@ -152,7 +193,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
              setupAgora(call.type).catch(error => {
                 console.error("Agora setup failed:", error);
                 onSetTtsMessage(`Could not start the call: ${error.message || 'Unknown error'}`);
-                handleHangUp();
+                handleHangUp(); // End the call gracefully
              });
         }
 

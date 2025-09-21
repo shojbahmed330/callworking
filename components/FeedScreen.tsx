@@ -1,7 +1,4 @@
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-// FIX: Corrected import paths for a component-level file
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
 import CreatePostWidget from './CreatePostWidget';
@@ -263,17 +260,14 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
                 onNavigate(AppView.SEARCH_RESULTS, { query });
             }
             break;
-// FIX: Use enum member instead of string literal.
           case 'intent_scroll_down':
-              onSetScrollState(ScrollState.DOWN);
+              onSetScrollState('down');
               break;
-// FIX: Use enum member instead of string literal.
           case 'intent_scroll_up':
-              onSetScrollState(ScrollState.UP);
+              onSetScrollState('up');
               break;
-// FIX: Use enum member instead of string literal.
           case 'intent_stop_scroll':
-              onSetScrollState(ScrollState.NONE);
+              onSetScrollState('none');
               break;
           case 'intent_help':
               onSetTtsMessage(getTtsPrompt('feed_loaded', language));

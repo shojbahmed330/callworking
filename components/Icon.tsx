@@ -1,6 +1,8 @@
+
+
 import React from 'react';
 
-type IconName = 'mic' | 'like' | 'comment' | 'share' | 'play' | 'pause' | 'logo' | 'back' | 'settings' | 'add-friend' | 'message' | 'edit' | 'bell' | 'briefcase' | 'academic-cap' | 'home' | 'map-pin' | 'user-slash' | 'globe' | 'users' | 'lock-closed' | 'ellipsis-vertical' | 'trash' | 'speaker-wave' | 'swatch' | 'coin' | 'chat-bubble-group' | 'video-camera' | 'video-camera-slash' | 'microphone-slash' | 'close' | 'add-circle' | 'paper-airplane' | 'home-solid' | 'users-group-solid' | 'photo' | 'compass' | 'film' | 'link' | 'facebook' | 'twitter' | 'whatsapp' | 'phone' | 'face-smile' | 'reply' | 'dots-horizontal' | 'pin';
+type IconName = 'mic' | 'like' | 'comment' | 'share' | 'play' | 'pause' | 'logo' | 'back' | 'settings' | 'add-friend' | 'message' | 'edit' | 'bell' | 'briefcase' | 'academic-cap' | 'home' | 'map-pin' | 'user-slash' | 'globe' | 'users' | 'lock-closed' | 'ellipsis-vertical' | 'trash' | 'speaker-wave' | 'swatch' | 'coin' | 'chat-bubble-group' | 'video-camera' | 'video-camera-slash' | 'microphone-slash' | 'close' | 'add-circle' | 'paper-airplane' | 'home-solid' | 'users-group-solid' | 'photo' | 'compass' | 'film' | 'link' | 'facebook' | 'twitter' | 'whatsapp' | 'phone' | 'face-smile' | 'reply' | 'dots-horizontal';
 
 interface IconProps {
   name: IconName;
@@ -256,11 +258,6 @@ const ICONS: Record<IconName, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
     </svg>
   ),
-  pin: (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-5.18-4.32-9.5-9.5-9.5S.5 6.82.5 12c0 4.19 2.92 8.04 7 9.19V23l2.5-2.5 2.5 2.5v-1.81c4.08-1.15 7-5 7-9.19zM9 12h6" />
-    </svg>
-  )
 };
 
 const Icon: React.FC<IconProps> = ({ name, className }) => {

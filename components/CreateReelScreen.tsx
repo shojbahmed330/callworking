@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { User, Post } from '../types';
 import { firebaseService } from '../services/firebaseService';
@@ -54,18 +52,8 @@ const CreateReelScreen: React.FC<CreateReelScreenProps> = ({ currentUser, onGoBa
         onSetTtsMessage("Publishing your Reel...");
         
         try {
-// FIX: Added missing properties to the Post object to match the type definition.
             await firebaseService.createPost(
-                { 
-                    author: currentUser, 
-                    caption, 
-                    captionStyle, 
-                    duration: 0,
-                    createdAt: new Date().toISOString(),
-                    commentCount: 0,
-                    comments: [],
-                    reactions: {}
-                },
+                { author: currentUser, caption, captionStyle, duration: 0 },
                 { mediaFile: videoFile }
             );
             onReelCreated();

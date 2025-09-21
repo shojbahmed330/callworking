@@ -148,13 +148,11 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
 
-                const uid = currentUser.id;
-
-                const token = await geminiService.getAgoraToken(roomId, uid);
+                const token = await geminiService.getAgoraToken(roomId, currentUser.id);
                 if (!token) {
                     throw new Error("Failed to retrieve Agora token. The video call cannot proceed.");
                 }
-                await client.join(AGORA_APP_ID, roomId, token, uid);
+                await client.join(AGORA_APP_ID, roomId, token, currentUser.id);
 
                 const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                 localAudioTrack.current = audioTrack;

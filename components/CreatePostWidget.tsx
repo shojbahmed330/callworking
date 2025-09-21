@@ -1,5 +1,4 @@
 import React from 'react';
-// FIX: Corrected import paths for a component-level file
 import type { User } from '../types';
 import Icon from './Icon';
 

@@ -45,6 +45,7 @@ const NavItem: React.FC<{
 const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onNavigate, friendRequestCount, activeView, voiceState, onMicClick, onSendCommand, commandInputValue, setCommandInputValue, ttsMessage, isChatRecording }) => {
     return (
         <div className="fixed bottom-0 left-0 right-0 h-auto bg-gradient-to-t from-black to-slate-900 border-t border-lime-500/20 z-40 md:hidden flex flex-col">
+            {/* The new, persistent command input bar for mobile */}
             <VoiceCommandInput
                 onSendCommand={onSendCommand}
                 voiceState={voiceState}
@@ -54,6 +55,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onNavigate, friendReq
                 placeholder={ttsMessage}
                 isChatRecording={isChatRecording}
             />
+            {/* The 5-button navigation bar */}
             <div className="flex justify-around items-center h-16">
                 <NavItem
                     iconName="home-solid"
@@ -76,6 +78,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onNavigate, friendReq
                  <NavItem
                     iconName="message"
                     label="Messages"
+                    // FIX: Property 'MESSAGES' does not exist on type 'typeof AppView'.
                     isActive={activeView === AppView.CONVERSATIONS}
                     onClick={() => onNavigate('messages')}
                 />

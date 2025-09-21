@@ -1,6 +1,4 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-// FIX: Corrected import paths for a component-level file
 import { RecordingState, User, Post } from '../types';
 import { getTtsPrompt } from '../constants';
 import Icon from './Icon';

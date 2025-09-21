@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story, Conversation, Call } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -160,7 +159,7 @@ const UserApp: React.FC = () => {
   const [voiceState, setVoiceState] = useState<VoiceState>(VoiceState.IDLE);
   const [ttsMessage, setTtsMessage] = useState<string>('Say a command...');
   const [lastCommand, setLastCommand] = useState<string | null>(null);
-  const [scrollState, setScrollState] = useState<ScrollState>(ScrollState.NONE);
+  const [scrollState, setScrollState] = useState<ScrollState>('none');
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
   const [isLoadingReels, setIsLoadingReels] = useState(true);
@@ -241,9 +240,9 @@ const UserApp: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    const unsubscribe = firebaseService.listenToConversations(user.id, (newConvos: Conversation[]) => {
+    const unsubscribe = firebaseService.listenToConversations(user.id, (newConvos) => {
         const convoWithNewMessage = newConvos.find(convo => {
-            if (!convo.lastMessage || convo.lastMessage.sender.id === user.id) {
+            if (!convo.lastMessage || convo.lastMessage.senderId === user.id) {
                 return false;
             }
             const previousId = previousLastMessageIdsRef.current.get(convo.peer.id);
@@ -316,8 +315,9 @@ const UserApp: React.FC = () => {
       };
   }, []);
 
+  // Effect 1: Handles authentication state changes. Only sets the current user ID or handles logout.
   useEffect(() => {
-    const unsubscribeAuth = firebaseService.onAuthStateChanged((userAuth: User | null) => {
+    const unsubscribeAuth = firebaseService.onAuthStateChanged((userAuth) => {
         setCurrentUserId(userAuth?.id || null);
         if (!userAuth) {
             setUser(null);
@@ -335,13 +335,14 @@ const UserApp: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
+  // Effect 2: Listens to the current user's profile document once we have a user ID.
   useEffect(() => {
       if (!currentUserId) return;
 
       let isFirstLoad = true;
       firebaseService.updateUserOnlineStatus(currentUserId, 'online');
 
-      const unsubscribeUserDoc = firebaseService.listenToCurrentUser(currentUserId, async (userProfile: User | null) => {
+      const unsubscribeUserDoc = firebaseService.listenToCurrentUser(currentUserId, async (userProfile) => {
           if (userProfile && !userProfile.isDeactivated && !userProfile.isBanned) {
               setUser(userProfile);
 
@@ -366,15 +367,16 @@ const UserApp: React.FC = () => {
       });
       
       return () => unsubscribeUserDoc();
-  }, [currentUserId, initialDeepLink, language, handleLogout, currentView?.view]);
+  }, [currentUserId, initialDeepLink, language, handleLogout]);
 
+  // Effect 3: Manages data subscriptions that depend only on the user's ID.
   useEffect(() => {
     if (!user?.id) return;
 
     let unsubscribes: (()=>void)[] = [];
     
     setIsLoadingReels(true);
-    const unsubscribeReelsPosts = firebaseService.listenToReelsPosts((newReelsPosts: Post[]) => {
+    const unsubscribeReelsPosts = firebaseService.listenToReelsPosts((newReelsPosts) => {
         setReelsPosts(newReelsPosts);
         setIsLoadingReels(false);
     });
@@ -383,11 +385,10 @@ const UserApp: React.FC = () => {
     const unsubscribeFriendRequests = firebaseService.listenToFriendRequests(user.id, setFriendRequests);
     unsubscribes.push(unsubscribeFriendRequests);
 
-// FIX: Wrapped setNotifications in an arrow function to match the expected callback type.
-const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, (notifications) => setNotifications(notifications));
+    const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, setNotifications);
     unsubscribes.push(unsubscribeNotifications);
     
-    const unsubscribeCalls = firebaseService.listenForIncomingCalls(user.id, (call: Call) => {
+    const unsubscribeCalls = firebaseService.listenForIncomingCalls(user.id, (call) => {
         setIncomingCall(call);
     });
     unsubscribes.push(unsubscribeCalls);
@@ -397,18 +398,23 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
     };
   }, [user?.id]);
 
+  // Effect 4: Manages data subscriptions that depend on friend/block lists.
+  // This effect will ONLY re-run if the content of friendIds or blockedUserIds changes.
   useEffect(() => {
     if (!user?.id) return;
 
     let unsubscribes: (()=>void)[] = [];
     
     setIsLoadingFeed(true);
-    const unsubscribePosts = firebaseService.listenToFeedPosts(user.id, userFriendIds, userBlockedIds, (feedPosts: Post[]) => {
+    // This listener for the feed is efficient and uses the friend/block lists in its query logic.
+    const unsubscribePosts = firebaseService.listenToFeedPosts(user.id, userFriendIds, userBlockedIds, (feedPosts) => {
         setPosts(feedPosts);
         setIsLoadingFeed(false);
     });
     unsubscribes.push(unsubscribePosts);
     
+    // --- POLLING LOGIC FOR FRIENDS' ONLINE STATUS ---
+    // This replaces the expensive real-time listener to prevent quota issues.
     let isMounted = true;
     const fetchFriends = async () => {
         if (!user?.id) return;
@@ -422,8 +428,8 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
         }
     };
 
-    fetchFriends(); 
-    const friendsInterval = setInterval(fetchFriends, 5000); 
+    fetchFriends(); // Initial fetch
+    const friendsInterval = setInterval(fetchFriends, 5000); // Poll every 5 seconds
     
     return () => {
         isMounted = false;
@@ -469,7 +475,7 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
 
   const handleCommand = useCallback((command: string) => {
     setVoiceState(VoiceState.PROCESSING);
-    setScrollState(ScrollState.NONE);
+    setScrollState('none');
     setLastCommand(command);
     setCommandInputValue('');
   }, []);
@@ -640,6 +646,8 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
               };
           });
           setTtsMessage(getTtsPrompt('reward_claim_success', language, { coins: REWARD_AD_COIN_VALUE }));
+          if (campaignId) {
+          }
       } else {
           setTtsMessage(getTtsPrompt('transaction_failed', language));
       }
@@ -821,7 +829,7 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
     setIsLoadingViewerPost(false); 
 
     if (!post.isSponsored && !post.id.startsWith('ad_')) {
-        const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost: Post | null) => {
+        const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
             if (updatedPost) {
                 setViewerPost(updatedPost);
             } else {
@@ -1055,6 +1063,7 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
       />
       
       <main className="flex-grow overflow-hidden relative flex flex-col">
+        {/* Header */}
         <header className="flex-shrink-0 h-16 bg-slate-900/70 backdrop-blur-sm border-b border-lime-500/20 z-30 hidden md:flex items-center justify-between px-6">
             <div className="flex items-center gap-4">
                 {viewStack.length > 1 && (
@@ -1096,6 +1105,7 @@ const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, 
             </div>
         </header>
         
+        {/* Mobile Header */}
         <header className="flex-shrink-0 h-14 bg-slate-900 border-b border-lime-500/20 z-30 flex md:hidden items-center justify-between px-2">
             {viewStack.length > 1 && !isMobileSearchOpen && (
                  <button onClick={goBack} className="p-2 rounded-full text-lime-400 hover:bg-slate-800">

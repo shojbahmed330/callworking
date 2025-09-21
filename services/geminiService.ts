@@ -1,9 +1,10 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author, Call, Speaker } from '../types';
+import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author, Call } from '../types';
 import { VOICE_EMOJI_MAP, MOCK_MUSIC_LIBRARY, DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS } from '../constants';
 import { firebaseService } from './firebaseService';
 
 
+// --- Gemini API Initialization ---
 const apiKey = process.env.API_KEY;
 if (!apiKey) {
     alert("CRITICAL ERROR: Gemini API key is not configured. Please ensure your environment variables are set up correctly.");
@@ -135,14 +136,15 @@ let NLU_INTENT_LIST = `
 `;
 
 export const geminiService = {
+  // --- NLU ---
   async processIntent(command: string, context?: { userNames?: string[], groupNames?: string[], themeNames?: string[] }): Promise<NLUResponse> {
     
     let dynamicContext = "";
     if (context?.userNames && context.userNames.length > 0) {
-        dynamicContext += `\nFor intents that require a 'target_name', here are some relevant names: [${context.userNames.join(', ')}].`;
+        dynamicContext += `\nFor intents that require a 'target_name' (like open_profile, send_message, add_friend, like, block_user, etc.), the user might say one of these names: [${context.userNames.join(', ')}]. Extract the name exactly as it appears in this list if you find a match.`;
     }
      if (context?.groupNames && context.groupNames.length > 0) {
-        dynamicContext += `\nFor intents related to groups, here are some available groups: [${context.groupNames.join(', ')}].`;
+        dynamicContext += `\nFor intents related to groups (like join_group, leave_group, etc.), here are some available groups: [${context.groupNames.join(', ')}].`;
     }
      if (context?.themeNames && context.themeNames.length > 0) {
         dynamicContext += `\nFor 'intent_change_chat_theme', available themes are: [${context.themeNames.join(', ')}].`;
@@ -193,83 +195,196 @@ export const geminiService = {
 
       const jsonString = response.text.trim();
       const parsed = JSON.parse(jsonString);
+      console.log("NLU Response:", parsed);
       return parsed as NLUResponse;
     } catch (error) {
-      console.error("Error processing intent:", error, "Command:", command);
+      console.error("Error processing intent:", error);
+      console.error("Failed command:", command);
       return { intent: 'unknown' };
     }
   },
 
+  // --- Friends ---
   getFriendRequests: (userId: string): Promise<User[]> => firebaseService.getFriendRequests(userId),
   acceptFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.acceptFriendRequest(currentUserId, requestingUserId),
   declineFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.declineFriendRequest(currentUserId, requestingUserId),
   checkFriendshipStatus: (currentUserId: string, profileUserId: string): Promise<FriendshipStatus> => firebaseService.checkFriendshipStatus(currentUserId, profileUserId),
   addFriend: (currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> => firebaseService.addFriend(currentUserId, targetUserId),
-  // FIX: Added missing passthrough methods to firebaseService
   unfriendUser: (currentUserId: string, targetUserId: string) => firebaseService.unfriendUser(currentUserId, targetUserId),
   cancelFriendRequest: (currentUserId: string, targetUserId: string) => firebaseService.cancelFriendRequest(currentUserId, targetUserId),
+
+  // --- This is a mock/simulated function ---
   async getRecommendedFriends(userId: string): Promise<User[]> {
       const allUsers = await firebaseService.getAllUsersForAdmin();
       const currentUser = allUsers.find(u => u.id === userId);
       if (!currentUser) return [];
-      const friendsAndRequests = new Set([...(currentUser.friendIds || []), userId]);
+
+      const friendsAndRequests = new Set([
+          ...currentUser.friendIds || [],
+          userId
+      ]);
+
       return allUsers.filter(u => !friendsAndRequests.has(u.id));
   },
-  async getFriendsList(userId: string): Promise<User[]> {
+  
+   async getFriendsList(userId: string): Promise<User[]> {
       const user = await firebaseService.getUserProfileById(userId);
-      if (!user || !user.friendIds || user.friendIds.length === 0) return [];
+      if (!user || !user.friendIds || user.friendIds.length === 0) {
+          return [];
+      }
       return await firebaseService.getUsersByIds(user.friendIds);
   },
+  
   getCommonFriends: (userId1: string, userId2: string): Promise<User[]> => firebaseService.getCommonFriends(userId1, userId2),
+  
+  // --- Profile & Security ---
   async getUserById(userId: string): Promise<User | null> {
     return firebaseService.getUserProfileById(userId);
   },
-  // FIX: Added missing passthrough methods to firebaseService
+  
   async searchUsers(query: string): Promise<User[]> {
     return firebaseService.searchUsers(query);
   },
+
   async updateProfile(userId: string, updates: Partial<User>): Promise<void> {
     await firebaseService.updateProfile(userId, updates);
   },
+  
   async updateProfilePicture(userId: string, base64: string, caption?: string, captionStyle?: Post['captionStyle']): Promise<{ updatedUser: User; newPost: Post } | null> {
     return firebaseService.updateProfilePicture(userId, base64, caption, captionStyle);
   },
+  
   async updateCoverPhoto(userId: string, base64: string, caption?: string, captionStyle?: Post['captionStyle']): Promise<{ updatedUser: User; newPost: Post } | null> {
     return firebaseService.updateCoverPhoto(userId, base64, caption, captionStyle);
   },
-  // FIX: Added missing passthrough methods to firebaseService
+
   async blockUser(currentUserId: string, targetUserId: string): Promise<boolean> {
       return firebaseService.blockUser(currentUserId, targetUserId);
   },
+  
   async unblockUser(currentUserId: string, targetUserId: string): Promise<boolean> {
       return firebaseService.unblockUser(currentUserId, targetUserId);
   },
+
   async changePassword(userId: string, currentPass: string, newPass: string): Promise<boolean> {
-      return false; // Mock
+      // This is a mock for demonstration. Real password changes need secure backend logic.
+      const user = await firebaseService.getUserProfileById(userId);
+      if (user && user.password === currentPass) {
+          await firebaseService.updateProfile(userId, { password: newPass });
+          return true;
+      }
+      return false;
   },
+
   async deactivateAccount(userId: string): Promise<boolean> {
       return firebaseService.deactivateAccount(userId);
   },
+  
+  // --- Voice Coins ---
   async updateVoiceCoins(userId: string, amount: number): Promise<boolean> {
     return firebaseService.updateVoiceCoins(userId, amount);
   },
+
+  // --- Image Generation ---
+  async generateImageForPost(prompt: string): Promise<string | null> {
+      // This is a mock function as image generation is a premium feature.
+      // In a real app, this would call the Gemini Image API.
+      // We will return a placeholder image from an external service.
+      try {
+          // A simple hash to get a different image for different prompts
+          const hash = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const imageUrl = `https://picsum.photos/seed/${hash}/1024`;
+          // We need to fetch and convert to base64 to simulate the behavior of the real API returning image bytes.
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+          });
+      } catch (error) {
+          console.error("Failed to generate placeholder image:", error);
+          return null;
+      }
+  },
+
+  async editImage(base64ImageData: string, mimeType: string, prompt: string): Promise<string | null> {
+    try {
+        const imagePart = {
+            inlineData: {
+                data: base64ImageData,
+                mimeType: mimeType,
+            },
+        };
+        const textPart = {
+            text: prompt,
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: { parts: [imagePart, textPart] },
+            config: {
+                responseModalities: [Modality.IMAGE, Modality.TEXT],
+            },
+        });
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+                // Return a data URL for easy display
+                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            }
+        }
+        return null; // No image found in response
+    } catch (error) {
+        console.error("Error editing image with Gemini:", error);
+        return null;
+    }
+  },
+  
+  // Music Library (Mock)
   getMusicLibrary(): MusicTrack[] {
       return MOCK_MUSIC_LIBRARY;
   },
+
+  // --- Mocks & Simulations ---
+  
+  async sendAudioPost(userId: string, duration: number, caption: string): Promise<Post> {
+    const user = await firebaseService.getUserProfileById(userId);
+    if (!user) throw new Error("User not found for creating post");
+    
+    const newPost: Post = {
+        id: `mock_${Date.now()}`,
+        author: { id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl },
+        audioUrl: '#', // Mock URL
+        caption: caption,
+        duration: duration,
+        createdAt: new Date().toISOString(),
+        commentCount: 0,
+        comments: [],
+        reactions: {},
+    };
+
+    await firebaseService.createPost(newPost, {});
+    return newPost;
+  },
+  
+  // --- Posts ---
   listenToFeedPosts: (currentUserId: string, friendIds: string[], blockedUserIds: string[], callback: (posts: Post[]) => void) => {
       return firebaseService.listenToFeedPosts(currentUserId, friendIds, blockedUserIds, callback);
   },
+
   getChatId: (user1Id, user2Id) => firebaseService.getChatId(user1Id, user2Id),
   listenToMessages: (chatId, callback) => firebaseService.listenToMessages(chatId, callback),
   listenToConversations: (userId, callback) => firebaseService.listenToConversations(userId, callback),
   sendMessage: (chatId, sender, recipient, messageContent) => firebaseService.sendMessage(chatId, sender, recipient, messageContent),
-  // FIX: Added missing passthrough methods to firebaseService
-  unsendMessage: (chatId: string, messageId: string, userId: string) => firebaseService.unsendMessage(chatId, messageId, userId),
-  reactToMessage: (chatId: string, messageId: string, userId: string, emoji: string) => firebaseService.reactToMessage(chatId, messageId, userId, emoji),
-  deleteChatHistory: (chatId: string) => firebaseService.deleteChatHistory(chatId),
-  getChatSettings: (chatId: string) => firebaseService.getChatSettings(chatId),
-  updateChatSettings: (chatId: string, settings: ChatSettings) => firebaseService.updateChatSettings(chatId, settings),
-  markMessagesAsRead: (chatId: string, userId: string) => firebaseService.markMessagesAsRead(chatId, userId),
+  unsendMessage: (chatId, messageId, userId) => firebaseService.unsendMessage(chatId, messageId, userId),
+  reactToMessage: (chatId, messageId, userId, emoji) => firebaseService.reactToMessage(chatId, messageId, userId, emoji),
+  deleteChatHistory: (chatId) => firebaseService.deleteChatHistory(chatId),
+  getChatSettings: (chatId) => firebaseService.getChatSettings(chatId),
+  updateChatSettings: (chatId, settings) => firebaseService.updateChatSettings(chatId, settings),
+  markMessagesAsRead: (chatId, userId) => firebaseService.markMessagesAsRead(chatId, userId),
+
     createReplySnippet(message: Message): ReplyInfo {
         let content = '';
         if (message.isDeleted) {
@@ -284,14 +399,16 @@ export const geminiService = {
         }
         return {
             messageId: message.id,
-            senderName: message.sender.name,
+            senderName: message.senderId,
             content: content
         };
     },
+
+    // --- Rooms ---
     listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void) => firebaseService.listenToLiveAudioRooms(callback),
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
-    listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback as any),
-    listenToVideoRoom: (roomId: string, callback: (room: LiveVideoRoom | null) => void) => firebaseService.listenToRoom(roomId, 'video', callback as any),
+    listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),
+    listenToVideoRoom: (roomId: string, callback: (room: LiveVideoRoom | null) => void) => firebaseService.listenToRoom(roomId, 'video', callback),
     createLiveAudioRoom: (host: User, topic: string) => firebaseService.createLiveAudioRoom(host, topic),
     createLiveVideoRoom: (host: User, topic: string) => firebaseService.createLiveVideoRoom(host, topic),
     joinLiveAudioRoom: (userId: string, roomId: string) => firebaseService.joinLiveAudioRoom(userId, roomId),
@@ -304,14 +421,18 @@ export const geminiService = {
     raiseHandInAudioRoom: (userId: string, roomId: string) => firebaseService.raiseHandInAudioRoom(userId, roomId),
     inviteToSpeakInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.inviteToSpeakInAudioRoom(hostId, userId, roomId),
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
-    updateSpeakerState: (roomId: string, speakerId: string, newState: Partial<Speaker>) => firebaseService.updateSpeakerState(roomId, speakerId, newState),
+    
+    // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),
     submitCampaignForApproval: (campaignData: Omit<Campaign, 'id'|'views'|'clicks'|'status'|'transactionId'>, transactionId: string) => firebaseService.submitCampaignForApproval(campaignData, transactionId),
     getRandomActiveCampaign: () => firebaseService.getRandomActiveCampaign(),
-    getLeadsForCampaign: (campaignId: string) => firebaseService.getLeadsForCampaign(campaignId),
+
+    // --- Stories ---
     getStories: (currentUserId: string) => firebaseService.getStories(currentUserId),
     markStoryAsViewed: (storyId: string, userId: string) => firebaseService.markStoryAsViewed(storyId, userId),
     createStory: (storyData, mediaFile) => firebaseService.createStory(storyData, mediaFile),
+    
+    // --- Groups ---
     getGroupById: (groupId: string) => firebaseService.getGroupById(groupId),
     getSuggestedGroups: (userId: string) => firebaseService.getSuggestedGroups(userId),
     createGroup: (creator, name, description, coverPhotoUrl, privacy, requiresApproval, category) => firebaseService.createGroup(creator, name, description, coverPhotoUrl, privacy, requiresApproval, category),
@@ -324,11 +445,15 @@ export const geminiService = {
     voteOnPoll: (userId, postId, optionIndex) => firebaseService.voteOnPoll(userId, postId, optionIndex),
     markBestAnswer: (userId, postId, commentId) => firebaseService.markBestAnswer(userId, postId, commentId),
     inviteFriendToGroup: (groupId, friendId) => firebaseService.inviteFriendToGroup(groupId, friendId),
+    
+    // --- Group Chat & Events ---
     getGroupChat: (groupId: string) => firebaseService.getGroupChat(groupId),
     sendGroupChatMessage: (groupId, sender, text) => firebaseService.sendGroupChatMessage(groupId, sender, text),
     getGroupEvents: (groupId: string) => firebaseService.getGroupEvents(groupId),
     createGroupEvent: (creator, groupId, title, description, date) => firebaseService.createGroupEvent(creator, groupId, title, description, date),
     rsvpToEvent: (userId, eventId) => firebaseService.rsvpToEvent(userId, eventId),
+    
+    // --- Admin Panel ---
     adminLogin: (email, password) => firebaseService.adminLogin(email, password),
     adminRegister: (email, password) => firebaseService.adminRegister(email, password),
     getAdminDashboardStats: () => firebaseService.getAdminDashboardStats(),
@@ -363,12 +488,56 @@ export const geminiService = {
     rejectJoinRequest: (groupId: string, userId: string) => firebaseService.rejectJoinRequest(groupId, userId),
     approvePost: (postId: string) => firebaseService.approvePost(postId),
     rejectPost: (postId: string) => firebaseService.rejectPost(postId),
-    getCategorizedExploreFeed: async (userId: string): Promise<CategorizedExploreFeed> => ({ trending: [], forYou: [], questions: [], funnyVoiceNotes: [], newTalent: [] }),
-    generateImageForPost: async (prompt: string): Promise<string | null> => null,
-    editImage: async (base64, mime, prompt) => null,
+    async getCategorizedExploreFeed(userId: string): Promise<CategorizedExploreFeed> {
+        const posts = await firebaseService.getExplorePosts(userId);
+        if (posts.length === 0) {
+            return { trending: [], forYou: [], questions: [], funnyVoiceNotes: [], newTalent: [] };
+        }
+
+        const systemInstruction = `You are a social media content curator for VoiceBook. You will be given a list of posts in JSON format. Your task is to categorize these posts into the following categories: 'trending', 'forYou', 'questions', 'funnyVoiceNotes', 'newTalent'. Return a single JSON object with keys corresponding to these categories, and the values should be arrays of the original post objects that fit into that category. A post can appear in multiple categories if it fits. Base 'forYou' on general interest, not a specific user. 'trending' should be based on high engagement (reactions/comments). 'questions' are posts that ask a question. 'funnyVoiceNotes' are audio posts that seem humorous. 'newTalent' are posts from newer users or with unique content.`;
+
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: `Here are the posts to categorize: ${JSON.stringify(posts)}`,
+                config: {
+                    systemInstruction,
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            trending: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                            forYou: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                            questions: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                            funnyVoiceNotes: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                            newTalent: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                        },
+                        required: ['trending', 'forYou', 'questions', 'funnyVoiceNotes', 'newTalent']
+                    }
+                },
+            });
+
+            const jsonString = response.text.trim();
+            const categorizedFeed = JSON.parse(jsonString);
+            return categorizedFeed;
+        } catch (error) {
+            console.error("Failed to parse categorized feed from Gemini:", error);
+            // Fallback to a simple categorization if Gemini fails
+            return {
+                trending: posts.slice(0, 5),
+                forYou: posts.slice(5, 10),
+                questions: posts.filter(p => p.caption.includes('?')).slice(0, 5),
+                funnyVoiceNotes: [],
+                newTalent: [],
+            };
+        }
+    },
+    
+    // --- 1-on-1 Calls ---
     createCall: (caller, callee, chatId, type) => firebaseService.createCall(caller, callee, chatId, type),
     listenForIncomingCalls: (userId, callback) => firebaseService.listenForIncomingCalls(userId, callback),
     listenToCall: (callId, callback) => firebaseService.listenToCall(callId, callback),
     updateCallStatus: (callId, status) => firebaseService.updateCallStatus(callId, status),
+
     getAgoraToken: (channelName: string, uid: string | number) => firebaseService.getAgoraToken(channelName, uid),
 };

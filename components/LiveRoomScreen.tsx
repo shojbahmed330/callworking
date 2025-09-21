@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { LiveAudioRoom, User, Speaker, Listener } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { AppView, LiveAudioRoom, User } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
 import { AGORA_APP_ID } from '../constants';
@@ -9,284 +9,285 @@ import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from
 interface LiveRoomScreenProps {
   currentUser: User;
   roomId: string;
+  onNavigate: (view: AppView, props?: any) => void;
   onGoBack: () => void;
   onSetTtsMessage: (message: string) => void;
 }
 
-const ParticipantCard: React.FC<{
-    user: Speaker | Listener;
-    isMuted: boolean;
-    isHost: boolean;
-    isSpeaking: boolean;
-    viewerIsHost: boolean;
-    onMuteToggle?: () => void;
-    onMoveToAudience?: () => void;
-}> = ({ user, isMuted, isHost, isSpeaking, viewerIsHost, onMuteToggle, onMoveToAudience }) => {
-    const isSelf = user.id === React.useContext(UserContext).id;
-    const canManage = viewerIsHost && !isSelf;
-
-    return (
-        <div className="flex flex-col items-center gap-2 text-center relative group">
-            <div className="relative">
-                <img src={user.avatarUrl} alt={user.name} className={`w-20 h-20 rounded-full transition-all duration-300 border-4 ${isSpeaking ? 'border-green-400' : 'border-transparent'}`} />
-                {isMuted && (
-                    <div className="absolute -bottom-1 -right-1 bg-slate-600 p-1.5 rounded-full border-2 border-slate-900">
-                        <Icon name="microphone-slash" className="w-4 h-4 text-white" />
-                    </div>
-                )}
-            </div>
-            <p className="font-semibold text-slate-100 truncate w-24">{user.name} {isHost ? '👑' : ''}</p>
-            {canManage && (
-                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
-                    {onMuteToggle && <button onClick={onMuteToggle} className="p-1.5 bg-slate-700/80 rounded-full text-white hover:bg-red-500"><Icon name="microphone-slash" className="w-4 h-4" /></button>}
-                    {onMoveToAudience && <button onClick={onMoveToAudience} className="p-1.5 bg-slate-700/80 rounded-full text-white hover:bg-yellow-500"><Icon name="back" className="w-4 h-4 transform rotate-90" /></button>}
-                </div>
-            )}
+const Avatar: React.FC<{ user: User; isHost?: boolean; isSpeaking?: boolean; children?: React.ReactNode }> = ({ user, isHost, isSpeaking, children }) => (
+    <div className="relative flex flex-col items-center gap-2 text-center w-24">
+        <div className="relative">
+            <img 
+                src={user.avatarUrl}
+                alt={user.name}
+                className={`w-20 h-20 rounded-full border-4 transition-all duration-300 ${isSpeaking ? 'border-green-400 ring-4 ring-green-500/50' : 'border-slate-600'}`}
+            />
+            {isHost && <div className="absolute -bottom-2 -right-1 text-2xl">👑</div>}
         </div>
-    );
-};
-const UserContext = React.createContext<User>({} as User);
+        <p className="font-semibold text-slate-200 truncate w-full">{user.name}</p>
+        {children}
+    </div>
+);
 
 
-const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, onGoBack, onSetTtsMessage }) => {
+const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, onNavigate, onGoBack, onSetTtsMessage }) => {
     const [room, setRoom] = useState<LiveAudioRoom | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [selfMuted, setSelfMuted] = useState(false);
     const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
-    const isJoining = useRef(false);
+    const [isMuted, setIsMuted] = useState(false);
+    
+    // Refs to hold the latest versions of function props to prevent re-running effects
+    const onGoBackRef = useRef(onGoBack);
+    const onSetTtsMessageRef = useRef(onSetTtsMessage);
 
-    const isHost = useMemo(() => room?.host.id === currentUser.id, [room, currentUser.id]);
-    const isSpeaker = useMemo(() => room?.speakers.some(s => s.id === currentUser.id), [room, currentUser.id]);
-
-    // Role Change Effect (Publish/Unpublish Mic)
+    // Effect to keep refs updated on every render without causing dependency changes
     useEffect(() => {
-        const handleRoleChange = async () => {
-            const client = agoraClient.current;
-            if (!client || client.connectionState !== 'CONNECTED') return;
+        onGoBackRef.current = onGoBack;
+        onSetTtsMessageRef.current = onSetTtsMessage;
+    });
 
-            if (isSpeaker && !localAudioTrack.current) {
-                try {
-                    const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-                    localAudioTrack.current = audioTrack;
-                    await client.publish([audioTrack]);
-                    setSelfMuted(false);
-                    onSetTtsMessage("You've been invited to speak. Your mic is now on.");
-                } catch (error) {
-                    console.error("Failed to create and publish audio track:", error);
-                    onSetTtsMessage("Could not activate microphone. Please check permissions.");
-                }
-            } else if (!isSpeaker && localAudioTrack.current) {
-                try {
-                    await client.unpublish([localAudioTrack.current]);
-                    localAudioTrack.current.stop();
-                    localAudioTrack.current.close();
-                    localAudioTrack.current = null;
-                    onSetTtsMessage("You've been moved to the audience.");
-                } catch (error) {
-                    console.error("Failed to unpublish audio track:", error);
-                }
-            }
-        };
-
-        handleRoleChange();
-    }, [isSpeaker, onSetTtsMessage]);
-
-    // Main Agora & Firebase Setup Effect
+    // Effect 1: Handles joining and leaving the Agora channel.
     useEffect(() => {
         if (!AGORA_APP_ID) {
-            onSetTtsMessage("Agora App ID is not configured. Real-time audio will not work.");
-            console.error("Agora App ID is missing.");
-            onGoBack();
+            onSetTtsMessageRef.current("Agora App ID is not configured. Real-time audio will not work.");
+            console.error("Agora App ID is not configured in constants.ts");
+            onGoBackRef.current();
             return;
         }
 
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
-        isJoining.current = true;
 
-        const setup = async () => {
-            // Agora event listeners
-            client.on('user-published', async (user, mediaType) => {
-                await client.subscribe(user, mediaType);
-                if (mediaType === 'audio') user.audioTrack?.play();
-            });
-            client.enableAudioVolumeIndicator();
-            client.on('volume-indicator', (volumes) => {
-                if (volumes.length > 0) {
-                    const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max);
-                    if (mainSpeaker.level > 5) setActiveSpeakerId(mainSpeaker.uid.toString());
-                    else setActiveSpeakerId(null);
-                } else {
-                    setActiveSpeakerId(null);
-                }
-            });
-
-            // Firebase listener for room details
-            const unsubscribe = geminiService.listenToAudioRoom(roomId, (roomDetails) => {
-                if (roomDetails) {
-                    setRoom(roomDetails);
-                    setIsLoading(false);
-                } else {
-                    onSetTtsMessage("The room has ended.");
-                    onGoBack();
-                }
-            });
-            
-            // Join Firebase and then Agora
-            await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
-            
-            const uid = currentUser.id;
-
-            const token = await geminiService.getAgoraToken(roomId, uid);
-            if (!token) throw new Error("Failed to get Agora token.");
-            await client.join(AGORA_APP_ID, roomId, token, uid);
-
-            isJoining.current = false;
-            return unsubscribe;
+        const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+            await client.subscribe(user, mediaType);
+            if (mediaType === 'audio') {
+                user.audioTrack?.play();
+            }
         };
 
-        const unsubscribePromise = setup().catch(error => {
-            console.error("Failed to setup room:", error);
-            onSetTtsMessage("Could not join the audio room. Please try again.");
-            onGoBack();
-        });
+        const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {};
+        const handleUserLeft = (user: IAgoraRTCRemoteUser) => {};
+
+        const handleVolumeIndicator = (volumes: any[]) => {
+            if (volumes.length === 0) {
+                setActiveSpeakerId(null);
+                return;
+            };
+            const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max);
+            if (mainSpeaker.level > 5) { // Threshold to avoid flickering
+                setActiveSpeakerId(mainSpeaker.uid.toString());
+            } else {
+                setActiveSpeakerId(null);
+            }
+        };
+        
+        const setupAgora = async () => {
+            client.on('user-published', handleUserPublished);
+            client.on('user-unpublished', handleUserUnpublished);
+            client.on('user-left', handleUserLeft);
+            client.enableAudioVolumeIndicator();
+            client.on('volume-indicator', handleVolumeIndicator);
+            
+            const uid = parseInt(currentUser.id, 36) % 10000000;
+            
+            const token = await geminiService.getAgoraToken(roomId, uid);
+            if (!token) {
+                console.error("Failed to retrieve Agora token. Cannot join room.");
+                onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
+                onGoBackRef.current();
+                return;
+            }
+
+            await client.join(AGORA_APP_ID, roomId, token, uid);
+        };
+
+        geminiService.joinLiveAudioRoom(currentUser.id, roomId).then(setupAgora);
 
         return () => {
-            unsubscribePromise.then(unsubscribe => {
-                if (unsubscribe) unsubscribe();
-            });
-            localAudioTrack.current?.close();
+            client.off('user-published', handleUserPublished);
+            client.off('user-unpublished', handleUserUnpublished);
+            client.off('user-left', handleUserLeft);
+            client.off('volume-indicator', handleVolumeIndicator);
+
+            if (localAudioTrack.current) {
+                localAudioTrack.current.stop();
+                localAudioTrack.current.close();
+                localAudioTrack.current = null;
+            }
             agoraClient.current?.leave();
             geminiService.leaveLiveAudioRoom(currentUser.id, roomId);
         };
-    }, [roomId, currentUser.id, onGoBack, onSetTtsMessage]);
+    }, [roomId, currentUser.id]); // Dependencies are stable, so this runs only once.
+    
+    // Effect 2: Subscribes to real-time Firestore updates for the room state
+    useEffect(() => {
+        setIsLoading(true);
+        const unsubscribe = geminiService.listenToAudioRoom(roomId, (roomDetails) => {
+            if (roomDetails) {
+                setRoom(roomDetails);
+            } else {
+                onSetTtsMessageRef.current("The room has ended.");
+                onGoBackRef.current();
+            }
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [roomId]); // Dependency is stable, so this runs only once.
+    
+    // Effect 3: Reacts to speaker status changes from Firestore to publish/unpublish audio.
+    useEffect(() => {
+        if (!room || !agoraClient.current) return;
+
+        const amISpeakerNow = room.speakers.some(s => s.id === currentUser.id);
+        const wasISpeakerBefore = !!localAudioTrack.current;
+
+        const handleRoleChange = async () => {
+            // Promotion: Listener -> Speaker (or Host joining)
+            if (amISpeakerNow && !wasISpeakerBefore) {
+                try {
+                    const track = await AgoraRTC.createMicrophoneAudioTrack();
+                    localAudioTrack.current = track;
+                    await agoraClient.current?.publish(track);
+                    track.setMuted(false);
+                    setIsMuted(false);
+                } catch (error) {
+                    console.error("Error creating/publishing audio track:", error);
+                    onSetTtsMessageRef.current("Could not activate microphone.");
+                }
+            }
+            // Demotion: Speaker -> Listener
+            else if (!amISpeakerNow && wasISpeakerBefore) {
+                try {
+                    if (localAudioTrack.current) {
+                        await agoraClient.current?.unpublish([localAudioTrack.current]);
+                        localAudioTrack.current.stop();
+                        localAudioTrack.current.close();
+                        localAudioTrack.current = null;
+                    }
+                } catch (error) {
+                    console.error("Error unpublishing audio track:", error);
+                }
+            }
+        };
+
+        handleRoleChange();
+
+    }, [room, currentUser.id]); // Runs only when room state or user ID changes.
 
     const handleLeave = () => {
-        if (isHost && window.confirm("As the host, leaving will end the room for everyone. Are you sure?")) {
+        onGoBack();
+    };
+    
+    const handleEndRoom = () => {
+        if (window.confirm('Are you sure you want to end this room for everyone?')) {
             geminiService.endLiveAudioRoom(currentUser.id, roomId);
-        } else {
-            onGoBack();
         }
     };
-
-    const toggleSelfMute = () => {
+    
+    const toggleMute = () => {
         if (localAudioTrack.current) {
-            const newMutedState = !selfMuted;
-            localAudioTrack.current.setMuted(newMutedState);
-            setSelfMuted(newMutedState);
-            geminiService.updateSpeakerState(roomId, currentUser.id, { isMuted: newMutedState });
+            const willBeMuted = !isMuted;
+            localAudioTrack.current.setMuted(willBeMuted);
+            setIsMuted(willBeMuted);
         }
     };
 
-    const handleToggleMuteParticipant = (userId: string, currentMuteState: boolean) => {
-        if (!isHost) return;
-        geminiService.updateSpeakerState(roomId, userId, { isMuted: !currentMuteState });
-    };
+    const handleRaiseHand = () => geminiService.raiseHandInAudioRoom(currentUser.id, roomId);
+    const handleInviteToSpeak = (userId: string) => geminiService.inviteToSpeakInAudioRoom(currentUser.id, userId, roomId);
+    const handleMoveToAudience = (userId: string) => geminiService.moveToAudienceInAudioRoom(currentUser.id, userId, roomId);
 
-    const handleRaiseHand = () => {
-        geminiService.raiseHandInAudioRoom(currentUser.id, roomId);
-        onSetTtsMessage("Your hand is raised.");
-    };
-
-    const handleInviteToSpeak = (userId: string) => {
-        geminiService.inviteToSpeakInAudioRoom(currentUser.id, userId, roomId);
-    };
-
-    const handleMoveToAudience = (userId: string) => {
-        geminiService.moveToAudienceInAudioRoom(currentUser.id, userId, roomId);
-    };
 
     if (isLoading || !room) {
-        return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Joining Room...</div>;
+        return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Room...</div>;
     }
+    
+    const isHost = room.host.id === currentUser.id;
+    const isSpeaker = room.speakers.some(s => s.id === currentUser.id);
+    const isListener = !isSpeaker;
+    const hasRaisedHand = room.raisedHands.includes(currentUser.id);
+    const raisedHandUsers = room.listeners.filter(u => room.raisedHands.includes(u.id));
 
-    const listenersWithHandRaised = useMemo(() => {
-        const raisedHandSet = new Set(room.raisedHands);
-        return room.listeners.filter(l => raisedHandSet.has(l.id));
-    }, [room.raisedHands, room.listeners]);
+    // Map Agora UID to User ID for speaking indicator
+    const speakerIdMap = new Map<string, string>();
+    room.speakers.forEach(s => {
+        const agoraUID = (parseInt(s.id, 36) % 10000000).toString();
+        speakerIdMap.set(agoraUID, s.id);
+    });
 
-    const isHandRaised = room.raisedHands.includes(currentUser.id);
+    const activeAppSpeakerId = activeSpeakerId ? speakerIdMap.get(activeSpeakerId) : null;
 
     return (
-        <UserContext.Provider value={currentUser}>
-        <div className="h-full w-full flex flex-col bg-gradient-to-b from-indigo-900 to-slate-900 text-white">
+        <div className="h-full w-full flex flex-col bg-gradient-to-b from-slate-900 to-black text-white">
             <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
                 <div>
                     <h1 className="text-xl font-bold truncate">{room.topic}</h1>
-                    <p className="text-sm text-slate-400">{room.speakers.length + room.listeners.length} people</p>
+                    <p className="text-sm text-slate-400">with {room.host.name}</p>
                 </div>
                 <button onClick={handleLeave} className="bg-red-600 hover:bg-red-500 font-bold py-2 px-4 rounded-lg">
-                    {isHost ? 'End Room' : 'Leave Quietly'}
+                    Leave
                 </button>
             </header>
+            
+            <main className="flex-grow overflow-y-auto p-6 space-y-8">
+                <section>
+                    <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
+                    <div className="flex flex-wrap gap-6">
+                        {room.speakers.map(speaker => (
+                            <Avatar key={speaker.id} user={speaker} isHost={speaker.id === room.host.id} isSpeaking={speaker.id === activeAppSpeakerId}>
+                                {isHost && speaker.id !== currentUser.id && (
+                                    <button onClick={() => handleMoveToAudience(speaker.id)} className="text-xs text-red-400 hover:underline">Move to Audience</button>
+                                )}
+                            </Avatar>
+                        ))}
+                    </div>
+                </section>
 
-            <main className="flex-grow p-6 overflow-y-auto space-y-8">
-                {isHost && listenersWithHandRaised.length > 0 && (
-                    <section>
-                        <h2 className="text-lg font-bold text-slate-300 mb-4">Raised Hands ({listenersWithHandRaised.length})</h2>
-                        <div className="flex flex-wrap gap-4">
-                            {listenersWithHandRaised.map(user => (
-                                <div key={user.id} className="bg-slate-700/50 p-3 rounded-lg flex items-center gap-3">
-                                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full"/>
-                                    <p className="font-semibold">{user.name}</p>
-                                    <button onClick={() => handleInviteToSpeak(user.id)} className="ml-2 px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-full">Invite</button>
-                                </div>
-                            ))}
+                {isHost && raisedHandUsers.length > 0 && (
+                     <section>
+                        <h2 className="text-lg font-semibold text-green-400 mb-4">Requests to Speak ({raisedHandUsers.length})</h2>
+                        <div className="flex flex-wrap gap-6 bg-slate-800/50 p-4 rounded-lg">
+                           {raisedHandUsers.map(user => (
+                                <Avatar key={user.id} user={user}>
+                                    <button onClick={() => handleInviteToSpeak(user.id)} className="text-xs bg-green-500 text-white px-2 py-1 rounded-md font-semibold">Invite to Speak</button>
+                                </Avatar>
+                           ))}
                         </div>
                     </section>
                 )}
 
                 <section>
-                    <h2 className="text-lg font-bold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-y-6 gap-x-4">
-                        {room.speakers.map(speaker => (
-                            <ParticipantCard 
-                                key={speaker.id} 
-                                user={speaker} 
-                                isMuted={speaker.isMuted} 
-                                isHost={speaker.id === room.host.id} 
-                                isSpeaking={speaker.id === activeSpeakerId}
-                                viewerIsHost={isHost}
-                                onMuteToggle={() => handleToggleMuteParticipant(speaker.id, speaker.isMuted)}
-                                onMoveToAudience={() => handleMoveToAudience(speaker.id)}
-                            />
-                        ))}
-                    </div>
-                </section>
-
-                <section>
-                    <h2 className="text-lg font-bold text-slate-300 mb-4">Listeners ({room.listeners.length})</h2>
-                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-y-6 gap-x-4">
+                    <h2 className="text-lg font-semibold text-slate-300 mb-4">Listeners ({room.listeners.length})</h2>
+                    <div className="flex flex-wrap gap-4">
                         {room.listeners.map(listener => (
-                            <ParticipantCard 
-                                key={listener.id} 
-                                user={listener} 
-                                isMuted={true}
-                                isHost={false}
-                                isSpeaking={false}
-                                viewerIsHost={isHost}
-                            />
+                            <div key={listener.id} className="relative" title={listener.name}>
+                                <img src={listener.avatarUrl} alt={listener.name} className="w-12 h-12 rounded-full" />
+                                {room.raisedHands.includes(listener.id) && (
+                                     <div className="absolute -bottom-1 -right-1 text-xl bg-slate-700 p-0.5 rounded-full">✋</div>
+                                )}
+                            </div>
                         ))}
                     </div>
                 </section>
             </main>
-
-            <footer className="flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24">
-                {isSpeaker ? (
-                    <button onClick={toggleSelfMute} className={`p-4 rounded-full transition-colors ${selfMuted ? 'bg-red-600' : 'bg-slate-600'}`}>
-                        <Icon name={selfMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
+            
+            <footer className="flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-4">
+                {isHost && <button onClick={handleEndRoom} className="bg-red-700 hover:bg-red-600 font-bold py-3 px-6 rounded-lg text-lg">End Room</button>}
+                {isSpeaker && (
+                    <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
+                        <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
                     </button>
-                ) : (
-                    <button onClick={handleRaiseHand} disabled={isHandRaised} className="bg-lime-600 text-black font-bold py-3 px-6 rounded-lg disabled:bg-slate-500 disabled:cursor-not-allowed">
-                       {isHandRaised ? 'Hand Raised' : '✋ Raise Hand'}
+                )}
+                {isListener && (
+                    <button onClick={handleRaiseHand} disabled={hasRaisedHand} className="bg-lime-600 hover:bg-lime-500 font-bold py-3 px-6 rounded-lg text-lg disabled:bg-slate-500 disabled:cursor-not-allowed text-black">
+                        {hasRaisedHand ? 'Hand Raised ✋' : 'Raise Hand ✋'}
                     </button>
                 )}
             </footer>
         </div>
-        </UserContext.Provider>
     );
 };
 
