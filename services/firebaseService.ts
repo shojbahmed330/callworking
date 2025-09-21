@@ -705,10 +705,13 @@ export const firebaseService = {
     // --- AGORA TOKEN ---
     getAgoraToken: async (channelName: string, uid: string | number): Promise<string | null> => {
         try {
-            const tokenServerUrl = `https://agora-nine-swart.vercel.app/api/token?channelName=${channelName}&uid=${uid}`;
-            const response = await fetch(tokenServerUrl);
+            // Use the local proxy serverless function
+            const proxyUrl = `/api/proxy?channelName=${channelName}&uid=${uid}`;
+            const response = await fetch(proxyUrl);
             if (!response.ok) {
-                throw new Error(`Failed to fetch token: ${response.statusText}`);
+                const errorText = await response.text();
+                console.error(`Token proxy error: ${response.status} ${errorText}`);
+                throw new Error(`Failed to fetch token via proxy: ${response.statusText}`);
             }
             const data = await response.json();
             return data.token;
