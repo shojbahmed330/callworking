@@ -705,22 +705,23 @@ export const firebaseService = {
     // --- AGORA TOKEN ---
     getAgoraToken: async (channelName: string, uid: string | number): Promise<string | null> => {
         try {
-            // Use the local token serverless function
+            // Point to the new, in-project serverless function
             const tokenUrl = `/api/token?channelName=${channelName}&uid=${uid}`;
             const response = await fetch(tokenUrl);
+
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Token server error: ${response.status} ${errorText}`);
-                throw new Error(`Failed to fetch token: ${response.statusText}`);
+                const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
+                console.error("Token generation error:", response.status, errorData);
+                throw new Error(errorData.error || 'Failed to fetch token from local API');
             }
             const data = await response.json();
             if (!data.rtcToken) {
-              throw new Error("Token server response did not include rtcToken.");
+                throw new Error("Local token API response did not include rtcToken.");
             }
             return data.rtcToken;
         } catch (error) {
             console.error("Error fetching Agora token:", error);
-            return null;
+            throw new Error('Failed to get Agora token.'); // Re-throw to be caught by UI components
         }
     },
     
