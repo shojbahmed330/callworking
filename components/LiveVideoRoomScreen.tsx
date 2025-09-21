@@ -148,7 +148,15 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
 
-                const uid = parseInt(currentUser.id, 36) % 10000000;
+                // Convert Firebase string UID to a 32-bit integer for Agora
+                let hash = 0;
+                for (let i = 0; i < currentUser.id.length; i++) {
+                    const char = currentUser.id.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash |= 0; // Convert to 32bit integer
+                }
+                const uid = Math.abs(hash);
+
                 const token = await geminiService.getAgoraToken(roomId, uid);
                 if (!token) {
                     throw new Error("Failed to retrieve Agora token. The video call cannot proceed.");

@@ -137,7 +137,16 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             
             // Join Firebase and then Agora
             await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
-            const uid = parseInt(currentUser.id, 36) % 10000000;
+            
+            // Convert Firebase string UID to a 32-bit integer for Agora
+            let hash = 0;
+            for (let i = 0; i < currentUser.id.length; i++) {
+                const char = currentUser.id.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash |= 0; // Convert to 32bit integer
+            }
+            const uid = Math.abs(hash);
+
             const token = await geminiService.getAgoraToken(roomId, uid);
             if (!token) throw new Error("Failed to get Agora token.");
             await client.join(AGORA_APP_ID, roomId, token, uid);
