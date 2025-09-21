@@ -6,7 +6,7 @@ import 'firebase/compat/storage';
 import { User as FirebaseUser } from 'firebase/auth';
 
 import { db, auth, storage } from './firebaseConfig';
-import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call, LiveRoomMessage } from '../types';
+import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call, LiveAudioRoomMessage } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
 const { serverTimestamp, increment, arrayUnion, arrayRemove, delete: deleteField } = firebase.firestore.FieldValue;
@@ -1394,6 +1394,35 @@ listenToLiveAudioRooms(callback: (rooms: LiveAudioRoom[]) => void) {
         callback(rooms);
     });
 },
+listenToLiveAudioRoomMessages(roomId: string, callback: (messages: LiveAudioRoomMessage[]) => void) {
+    const q = db.collection('liveAudioRooms').doc(roomId).collection('messages').orderBy('createdAt', 'asc').limitToLast(50);
+    return q.onSnapshot(snapshot => {
+        const messages = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            } as LiveAudioRoomMessage;
+        });
+        callback(messages);
+    });
+},
+
+async sendLiveAudioRoomMessage(roomId: string, sender: User, text: string, isHost: boolean, isSpeaker: boolean): Promise<void> {
+    const messageData = {
+        sender: {
+            id: sender.id,
+            name: sender.name,
+            avatarUrl: sender.avatarUrl,
+        },
+        text,
+        isHost,
+        isSpeaker,
+        createdAt: serverTimestamp(),
+    };
+    await db.collection('liveAudioRooms').doc(roomId).collection('messages').add(messageData);
+},
 listenToLiveVideoRooms(callback: (rooms: LiveVideoRoom[]) => void) {
     const q = db.collection('liveVideoRooms').where('status', '==', 'live');
     return q.onSnapshot((snapshot) => {
@@ -1527,10 +1556,6 @@ async getAudioRoomDetails(roomId: string): Promise<LiveAudioRoom | null> {
 async raiseHandInAudioRoom(userId: string, roomId: string): Promise<void> {
     await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayUnion(userId) });
 },
-// FIX: Add the missing lowerHandInAudioRoom function.
-async lowerHandInAudioRoom(userId: string, roomId: string): Promise<void> {
-    await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayRemove(userId) });
-},
 async inviteToSpeakInAudioRoom(hostId: string, userId: string, roomId: string): Promise<void> {
     const roomRef = db.collection('liveAudioRooms').doc(roomId);
     const roomDoc = await roomRef.get();
@@ -1557,37 +1582,6 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             });
         }
     }
-},
-listenToLiveRoomMessages(roomId: string, callback: (messages: LiveRoomMessage[]) => void): () => void {
-    const messagesRef = db.collection('liveAudioRooms').doc(roomId).collection('messages').orderBy('createdAt', 'asc').limit(100);
-    return messagesRef.onSnapshot(snapshot => {
-        const messages = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-            } as LiveRoomMessage;
-        });
-        callback(messages);
-    });
-},
-
-async sendLiveRoomMessage(roomId: string, sender: User, message: { text?: string; emoji?: string }): Promise<void> {
-    const messagesRef = db.collection('liveAudioRooms').doc(roomId).collection('messages');
-    
-    const newMessage = {
-        sender: {
-            id: sender.id,
-            name: sender.name,
-            avatarUrl: sender.avatarUrl,
-            username: sender.username,
-        },
-        ...message,
-        createdAt: serverTimestamp(),
-    };
-    
-    await messagesRef.add(removeUndefined(newMessage));
 },
 
     // --- Campaigns, Stories, Groups, Admin, etc. ---

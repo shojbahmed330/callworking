@@ -256,12 +256,17 @@ export interface LiveAudioRoom {
   status: 'live' | 'ended';
 }
 
-export interface LiveRoomMessage {
+export interface LiveAudioRoomMessage {
   id: string;
-  sender: Author;
-  text?: string;
-  emoji?: string;
-  createdAt: string;
+  sender: {
+    id: string;
+    name: string;
+    avatarUrl: string;
+  };
+  text: string;
+  createdAt: string; // ISO string
+  isHost?: boolean;
+  isSpeaker?: boolean;
 }
 
 export interface VideoParticipantState extends User {
