@@ -144,7 +144,8 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
             );
     }
   };
-  
+  // FIX: Cast unknown value from Object.values to string to satisfy ReactNode type.
+  const reactionValues = Object.values(comment.reactions || {});
   return (
     <div className="bg-slate-700/50 rounded-lg p-3 flex gap-3 items-start relative">
         <button onClick={() => onAuthorClick(comment.author.username)} className="flex-shrink-0 group">
@@ -158,7 +159,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
             
             {reactionCount > 0 && (
                 <div className="absolute -bottom-2 right-2 bg-slate-800 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 border border-slate-600">
-                    <span>{Object.values(comment.reactions || {})[0]}</span>
+                    {reactionValues[0] && <span>{reactionValues[0]}</span>}
                     <span>{reactionCount}</span>
                 </div>
             )}

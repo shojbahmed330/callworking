@@ -1,6 +1,6 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+// FIX: Corrected import paths for a component-level file
 import { RecordingState, User, Comment } from '../types';
 import Waveform from './Waveform';
 import { firebaseService } from '../services/firebaseService';
@@ -129,15 +129,15 @@ const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId,
     try {
         if (mode === 'text' && text.trim()) {
             onSetTtsMessage('Posting text comment...');
-            newComment = await firebaseService.createComment(user, postId, { text });
+            newComment = await firebaseService.createComment(user, postId, { text, parentId: commentToReplyTo?.id });
         } else if (mode === 'image' && imageFile) {
             onSetTtsMessage('Uploading image comment...');
-            newComment = await firebaseService.createComment(user, postId, { imageFile });
+            newComment = await firebaseService.createComment(user, postId, { imageFile, parentId: commentToReplyTo?.id });
         } else if (mode === 'audio' && duration > 0 && audioUrl) {
             onSetTtsMessage('Posting voice comment...');
             setRecordingState(RecordingState.UPLOADING);
             const audioBlob = await fetch(audioUrl).then(r => r.blob());
-            newComment = await firebaseService.createComment(user, postId, { duration, audioBlob });
+            newComment = await firebaseService.createComment(user, postId, { duration, audioBlob, parentId: commentToReplyTo?.id });
         } else {
              onSetTtsMessage('Please add content to your comment.');
              setIsPosting(false);
@@ -151,7 +151,7 @@ const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId,
         onSetTtsMessage("Sorry, there was an error posting your comment.");
         setIsPosting(false);
     }
-  }, [user, postId, onCommentPosted, onSetTtsMessage, mode, text, imageFile, duration, audioUrl]);
+  }, [user, postId, onCommentPosted, onSetTtsMessage, mode, text, imageFile, duration, audioUrl, commentToReplyTo]);
 
   const handleCommand = useCallback(async (command: string) => {
     try {

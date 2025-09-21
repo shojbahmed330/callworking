@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { GroupChat, Group, User } from '../types';
+import { GroupChat, Group, User, Message } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
 
@@ -67,12 +66,12 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({ currentUser, groupId,
       <main className="flex-grow overflow-y-auto p-4 space-y-4">
         {chat?.messages.map((msg, index) => (
           <div key={msg.id} className="flex items-start gap-3">
-            <button onClick={() => onOpenProfile(msg.sender.name)}>
+            <button onClick={() => onOpenProfile(msg.sender.username)}>
               <img src={msg.sender.avatarUrl} alt={msg.sender.name} className="w-10 h-10 rounded-full" />
             </button>
             <div>
               <div className="flex items-baseline gap-2">
-                <button onClick={() => onOpenProfile(msg.sender.name)} className="font-semibold text-lime-400 hover:underline">{msg.sender.name}</button>
+                <button onClick={() => onOpenProfile(msg.sender.username)} className="font-semibold text-lime-400 hover:underline">{msg.sender.name}</button>
                 <span className="text-xs text-slate-500">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <p className="text-slate-200 bg-slate-700/50 px-3 py-2 rounded-lg inline-block">{msg.text}</p>

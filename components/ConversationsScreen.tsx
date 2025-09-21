@@ -1,4 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Corrected import paths for a component-level file
 import { User, Conversation, AppView, Message } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
@@ -39,7 +41,8 @@ const ConversationItem: React.FC<{ conversation: Conversation; currentUserId: st
         );
     }
     
-    const isLastMessageFromMe = lastMessage.senderId === currentUserId;
+    // FIX: Access sender ID from sender object
+    const isLastMessageFromMe = lastMessage.sender.id === currentUserId;
 
     const timeAgo = new Date(lastMessage.createdAt).toLocaleDateString('en-US', {
         month: 'short',
@@ -101,7 +104,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser, 
 
   useEffect(() => {
     setIsLoading(true);
-    const unsubscribe = firebaseService.listenToConversations(currentUser.id, (convos) => {
+    const unsubscribe = firebaseService.listenToConversations(currentUser.id, (convos: Conversation[]) => {
         setConversations(convos);
         if (isLoading) {
              onSetTtsMessage(getTtsPrompt('conversations_loaded', language));

@@ -1,4 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+// FIX: Corrected import paths for a component-level file
 import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
 import CommentCard from './CommentCard';

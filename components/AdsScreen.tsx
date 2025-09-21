@@ -227,7 +227,7 @@ const AdsScreen: React.FC<AdsScreenProps> = ({ currentUser, onSetTtsMessage, las
         }
         setIsLoadingLeads(true);
         setViewingLeadsFor(campaignId);
-        const fetchedLeads = await firebaseService.getLeadsForCampaign(campaignId);
+        const fetchedLeads = await geminiService.getLeadsForCampaign(campaignId);
         setLeads(fetchedLeads);
         setIsLoadingLeads(false);
     };
@@ -504,7 +504,7 @@ const AdsScreen: React.FC<AdsScreenProps> = ({ currentUser, onSetTtsMessage, las
                 />
             )}
         </div>
-    );
+    )
 };
 
 export default AdsScreen;

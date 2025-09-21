@@ -85,7 +85,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
   return (
     <aside className="w-72 flex-shrink-0 hidden md:flex flex-col py-6">
       <div className="flex-grow">
-        {/* Profile Section */}
         <button
             onClick={() => onNavigate('profile')}
             className="w-full flex items-center gap-4 p-3 rounded-lg text-left hover:bg-slate-800 mb-6 transition-colors"
@@ -97,7 +96,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
           </div>
         </button>
 
-        {/* Navigation */}
         <nav>
           <ul className="space-y-2">
             <NavItem
@@ -134,7 +132,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
             <NavItem
                 iconName="message"
                 label="Messages"
-                // FIX: Property 'MESSAGES' does not exist on type 'typeof AppView'. Corrected to CONVERSATIONS.
                 isActive={activeView === AppView.CONVERSATIONS}
                 onClick={() => onNavigate('messages')}
             />
@@ -160,7 +157,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
         </nav>
       </div>
 
-      {/* Voice Coins */}
       <div className="mb-4 bg-slate-900 shadow-md rounded-lg flex items-center justify-between p-3 border border-lime-500/20">
           <div className="flex items-center gap-3">
               <Icon name="coin" className="w-8 h-8 text-yellow-400" />
@@ -173,7 +169,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
       </div>
 
 
-      {/* Voice Command Button */}
       <div className="flex-shrink-0">
         <button
           onClick={onMicClick}

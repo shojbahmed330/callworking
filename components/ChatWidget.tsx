@@ -218,22 +218,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
         };
 
         try {
-            // 1. Proactively request permissions. This is the key change.
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            // We got permission! Stop the tracks immediately, as Agora will manage its own.
             stream.getTracks().forEach(track => track.stop());
 
-            // 2. If permission is granted, proceed to create the call.
             const callId = await firebaseService.createCall(currentUser, peerUser, chatId, type);
             
-            // 3. Navigate the caller to the call screen.
             onNavigate(AppView.CALL_SCREEN, {
                 callId,
                 peerUser,
                 isCaller: true,
             });
         } catch (error: any) {
-            // 4. If permission is denied or fails, inform the user and stop.
             console.error(`Failed to get media permissions for ${type} call:`, error);
             if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
                  onSetTtsMessage("Call failed: Microphone/camera permission was denied. Please allow access in your browser settings.");
@@ -287,7 +282,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
             <MessageBubble
                 key={msg.id}
                 message={msg}
-                isMe={msg.senderId === currentUser.id}
+                isMe={msg.sender.id === currentUser.id}
                 onReply={setReplyingTo}
                 onReact={handleReact}
                 onUnsend={handleUnsend}
@@ -298,7 +293,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
       <footer className="p-2 border-t border-slate-700">
         {replyingTo && (
             <div className="text-xs text-slate-400 px-2 pb-1 flex justify-between items-center bg-slate-700/50 rounded-t-md -mx-2 -mt-2 mb-2 p-2">
-                <span>Replying to {replyingTo.senderId === currentUser.id ? 'yourself' : peerUser.name}</span>
+                <span>Replying to {replyingTo.sender.name}</span>
                 <button onClick={() => setReplyingTo(null)} className="font-bold">
                     <Icon name="close" className="w-4 h-4" />
                 </button>
