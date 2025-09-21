@@ -7,6 +7,33 @@ import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 
 const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '🎉', '🔥', '🙏'];
+const EMOJI_LIST = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+  '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+  '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+  '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+  '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+  '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+  '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯',
+  '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+  '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈',
+  '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾',
+  '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿',
+  '😾', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞',
+  '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍',
+  '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝',
+  '🙏', '✍️', '💅', '🤳', '💪', '🦾'
+];
+
+const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+const isJumboEmoji = (text: string | undefined): boolean => {
+    if (!text) return false;
+    const trimmedText = text.trim();
+    const noEmojiText = trimmedText.replace(EMOJI_REGEX, '');
+    if (noEmojiText.trim().length > 0) return false; // Contains non-emoji text
+    const emojiCount = (trimmedText.match(EMOJI_REGEX) || []).length;
+    return emojiCount > 0 && emojiCount <= 2;
+};
 
 interface LiveRoomScreenProps {
   currentUser: User;
@@ -40,9 +67,13 @@ const ChatMessage: React.FC<{
 }> = ({ message, activeSpeakerId, isMe, theme, onReact }) => {
     const isSpeaking = message.sender.id === activeSpeakerId;
     const [isPickerOpen, setPickerOpen] = useState(false);
+    const isJumbo = isJumboEmoji(message.text);
 
     const bubbleClasses = useMemo(() => {
         const base = 'px-3 py-2 rounded-xl max-w-[90%] break-words relative backdrop-blur-sm transition-all duration-300';
+        if (isJumbo) {
+            return `bg-transparent`;
+        }
         if (isMe) {
             return `${base} ${theme.myBubble} bg-opacity-80 ml-auto rounded-br-none`;
         }
@@ -53,7 +84,7 @@ const ChatMessage: React.FC<{
             return `${base} bg-sky-500/40 border border-sky-400/50 rounded-bl-none`;
         }
         return `${base} bg-slate-700/50 rounded-bl-none`;
-    }, [isMe, message.isHost, message.isSpeaker, theme]);
+    }, [isMe, message.isHost, message.isSpeaker, theme, isJumbo]);
 
     const glowClass = isSpeaking ? 'shadow-[0_0_15px_rgba(57,255,20,0.7)]' : '';
     
@@ -81,7 +112,7 @@ const ChatMessage: React.FC<{
                     <div className="relative w-full">
                         <div className={`inline-block ${isMe ? 'ml-auto' : ''}`}>
                              <div className={`${bubbleClasses} ${glowClass}`}>
-                                <p className={`text-base ${theme.text} break-words`}>{message.text}</p>
+                                <p className={`text-base ${theme.text} break-words ${isJumbo ? 'jumbo-emoji animate-jumbo' : ''}`}>{message.text}</p>
                             </div>
                         </div>
                         <div className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-900/50 backdrop-blur-sm border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'}`}>
@@ -98,7 +129,7 @@ const ChatMessage: React.FC<{
                             </div>
                         )}
                     </div>
-                    {reactionSummary && (
+                    {reactionSummary && !isJumbo && (
                         <div className={`flex gap-1.5 mt-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             {reactionSummary.map(({ emoji, count }) => (
                                 <div key={emoji} className="bg-slate-700/60 rounded-full px-2 py-0.5 text-xs flex items-center gap-1">
@@ -168,6 +199,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     
     const [activeTheme, setActiveTheme] = useState(CHAT_THEMES.default);
     const [isThemePickerOpen, setThemePickerOpen] = useState(false);
+    const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
     const [floatingEmojis, setFloatingEmojis] = useState<{ id: number; emoji: string; }[]>([]);
     const prevReactionsRef = useRef<Record<string, Record<string, number>>>({});
 
@@ -371,6 +403,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         try {
             await geminiService.sendLiveAudioRoomMessage(roomId, currentUser, newMessage.trim(), !!isHost, isSpeaker);
             setNewMessage('');
+            setEmojiPickerOpen(false);
         } catch (error) {
             console.error("Failed to send message:", error);
             onSetTtsMessage("Could not send message.");
@@ -531,12 +564,27 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     ))}
                     <div ref={messagesEndRef} />
                 </div>
-                <footer className="p-3 flex-shrink-0 border-t border-white/10 bg-black/20 z-10">
+                <footer className="relative p-3 flex-shrink-0 border-t border-white/10 bg-black/20 z-10">
+                     {isEmojiPickerOpen && (
+                        <div className="absolute bottom-full left-0 right-0 p-2 bg-slate-900/95 backdrop-blur-sm rounded-t-lg border-t border-x border-slate-700 h-64 overflow-y-auto no-scrollbar">
+                            <div className="grid grid-cols-8 gap-2">
+                                {EMOJI_LIST.map(emoji => (
+                                    <button key={emoji} type="button" onClick={() => setNewMessage(prev => prev + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700/50 transition-colors">
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                        <button type="button" onClick={() => setEmojiPickerOpen(p => !p)} className="p-2 rounded-full text-slate-300 hover:bg-slate-700/50">
+                            <Icon name="face-smile" className="w-6 h-6"/>
+                        </button>
                         <input
                             type="text"
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
+                            onFocus={() => setEmojiPickerOpen(false)}
                             placeholder="Send a message..."
                             className="w-full bg-slate-800/70 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500"
                         />

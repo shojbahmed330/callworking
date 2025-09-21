@@ -1033,6 +1033,15 @@ const UserApp: React.FC = () => {
     }
   };
   
+  const isFullScreenView = [
+      AppView.LIVE_ROOM,
+      AppView.LIVE_VIDEO_ROOM,
+      AppView.CALL_SCREEN,
+      AppView.CREATE_STORY,
+      AppView.CREATE_REEL,
+      AppView.STORY_VIEWER
+  ].includes(currentView.view);
+  
   if (!user) {
     return (
       <div className="h-screen w-screen bg-transparent flex flex-col">
@@ -1189,18 +1198,20 @@ const UserApp: React.FC = () => {
               onReject={handleRejectCall}
           />
       )}
-       <MobileBottomNav 
-        onNavigate={handleNavigation}
-        friendRequestCount={friendRequestCount}
-        activeView={currentView.view}
-        voiceState={voiceState}
-        onMicClick={handleMicClick}
-        onSendCommand={handleCommand}
-        commandInputValue={commandInputValue}
-        setCommandInputValue={setCommandInputValue}
-        ttsMessage={ttsMessage}
-        isChatRecording={isChatRecording}
-       />
+      {!isFullScreenView && (
+        <MobileBottomNav 
+            onNavigate={handleNavigation}
+            friendRequestCount={friendRequestCount}
+            activeView={currentView.view}
+            voiceState={voiceState}
+            onMicClick={handleMicClick}
+            onSendCommand={handleCommand}
+            commandInputValue={commandInputValue}
+            setCommandInputValue={setCommandInputValue}
+            ttsMessage={ttsMessage}
+            isChatRecording={isChatRecording}
+        />
+      )}
     </div>
   );
 };
