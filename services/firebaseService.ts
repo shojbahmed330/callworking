@@ -1527,6 +1527,10 @@ async getAudioRoomDetails(roomId: string): Promise<LiveAudioRoom | null> {
 async raiseHandInAudioRoom(userId: string, roomId: string): Promise<void> {
     await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayUnion(userId) });
 },
+// FIX: Add the missing lowerHandInAudioRoom function.
+async lowerHandInAudioRoom(userId: string, roomId: string): Promise<void> {
+    await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayRemove(userId) });
+},
 async inviteToSpeakInAudioRoom(hostId: string, userId: string, roomId: string): Promise<void> {
     const roomRef = db.collection('liveAudioRooms').doc(roomId);
     const roomDoc = await roomRef.get();
@@ -1583,7 +1587,7 @@ async sendLiveRoomMessage(roomId: string, sender: User, message: { text?: string
         createdAt: serverTimestamp(),
     };
     
-    await messagesRef.add(newMessage);
+    await messagesRef.add(removeUndefined(newMessage));
 },
 
     // --- Campaigns, Stories, Groups, Admin, etc. ---

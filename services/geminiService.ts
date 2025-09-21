@@ -419,6 +419,8 @@ export const geminiService = {
     endLiveVideoRoom: (userId: string, roomId: string) => firebaseService.endLiveVideoRoom(userId, roomId),
     getAudioRoomDetails: (roomId: string) => firebaseService.getAudioRoomDetails(roomId),
     raiseHandInAudioRoom: (userId: string, roomId: string) => firebaseService.raiseHandInAudioRoom(userId, roomId),
+    // FIX: Expose the missing lowerHandInAudioRoom function from firebaseService.
+    lowerHandInAudioRoom: (userId: string, roomId: string) => firebaseService.lowerHandInAudioRoom(userId, roomId),
     inviteToSpeakInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.inviteToSpeakInAudioRoom(hostId, userId, roomId),
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
     

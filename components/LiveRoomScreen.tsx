@@ -55,7 +55,14 @@ const ChatPanel: React.FC<{
         const text = newMessage.trim();
         if (!text && !emoji) return;
 
-        const messageData = { text: text || undefined, emoji };
+        const messageData: { text?: string; emoji?: string } = {};
+        if (text) {
+            messageData.text = text;
+        }
+        if (emoji) {
+            messageData.emoji = emoji;
+        }
+
         await firebaseService.sendLiveRoomMessage(roomId, currentUser, messageData);
         setNewMessage('');
         setEmojiPickerOpen(false);
@@ -292,6 +299,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     };
 
     const handleRaiseHand = () => geminiService.raiseHandInAudioRoom(currentUser.id, roomId);
+    const handleLowerHand = () => geminiService.lowerHandInAudioRoom(currentUser.id, roomId);
     const handleInviteToSpeak = (userId: string) => geminiService.inviteToSpeakInAudioRoom(currentUser.id, userId, roomId);
     const handleMoveToAudience = (userId: string) => geminiService.moveToAudienceInAudioRoom(currentUser.id, userId, roomId);
 
@@ -368,20 +376,28 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     </section>
                 </main>
                 
-                <footer className="flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-4">
-                    {isHost && <button onClick={handleEndRoom} className="bg-red-700 hover:bg-red-600 font-bold py-3 px-6 rounded-lg text-lg">End Room</button>}
-                    {isSpeaker && (
-                        <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
-                            <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
-                        </button>
-                    )}
-                    {isListener && (
-                        <button onClick={handleRaiseHand} disabled={hasRaisedHand} className="bg-lime-600 hover:bg-lime-500 font-bold py-3 px-6 rounded-lg text-lg disabled:bg-slate-500 disabled:cursor-not-allowed text-black">
-                            {hasRaisedHand ? 'Hand Raised ✋' : 'Raise Hand ✋'}
-                        </button>
-                    )}
-                    <button onClick={() => setIsChatVisible(p => !p)} className="md:hidden p-4 rounded-full bg-slate-600 hover:bg-slate-500">
-                        <Icon name="comment" className="w-6 h-6" />
+                <footer className="flex-shrink-0 p-3 bg-black/20 flex items-center gap-3">
+                    <div className="flex-shrink-0 flex items-center gap-3">
+                        {isHost && <button onClick={handleEndRoom} className="bg-red-700 hover:bg-red-600 font-bold py-2 px-4 rounded-lg">End</button>}
+                        {isSpeaker && (
+                            <button onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
+                                <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
+                            </button>
+                        )}
+                        {isListener && (
+                            hasRaisedHand ? (
+                                <button onClick={handleLowerHand} className="bg-yellow-600 hover:bg-yellow-500 font-semibold py-2 px-4 rounded-lg text-black text-sm">
+                                    Lower Hand 👇
+                                </button>
+                            ) : (
+                                <button onClick={handleRaiseHand} className="bg-lime-600 hover:bg-lime-500 font-semibold py-2 px-4 rounded-lg text-black text-sm">
+                                    Raise Hand ✋
+                                </button>
+                            )
+                        )}
+                    </div>
+                    <button onClick={() => setIsChatVisible(true)} className="md:hidden flex-grow bg-slate-700 text-slate-400 text-left rounded-full px-4 py-2.5 h-11">
+                        Say something...
                     </button>
                 </footer>
             </div>
