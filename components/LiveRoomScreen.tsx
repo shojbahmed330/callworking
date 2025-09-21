@@ -114,13 +114,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
     // Effect for Agora Voice Connection
     useEffect(() => {
-        if (!AGORA_APP_ID) {
-            onSetTtsMessageRef.current("Agora App ID is not configured. Real-time audio will not work.");
-            console.error("Agora App ID is not configured in constants.ts");
-            onGoBackRef.current();
-            return;
-        }
-
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
 
@@ -131,45 +124,55 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
         const handleVolumeIndicator = (volumes: any[]) => {
             if (volumes.length === 0) { setActiveSpeakerId(null); return; };
-            const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max);
+            const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
             setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
         };
-        
-        const setupAgora = async (initialRoom: LiveAudioRoom) => {
-            if (initialRoom.kickedUserIds?.includes(currentUser.id)) {
-                onSetTtsMessageRef.current("You have been removed from this room.");
-                onGoBackRef.current();
-                return;
-            }
-            if (initialRoom.privacy === 'private' && initialRoom.host.id !== currentUser.id && !initialRoom.invitedUserIds?.includes(currentUser.id)) {
-                onSetTtsMessageRef.current("This is a private room. You need an invitation to join.");
-                onGoBackRef.current();
-                return;
-            }
 
-            client.on('user-published', handleUserPublished);
-            client.enableAudioVolumeIndicator();
-            client.on('volume-indicator', handleVolumeIndicator);
-            
-            const uid = parseInt(currentUser.id, 36) % 10000000;
-            
-            const token = await geminiService.getAgoraToken(roomId, uid);
-            if (!token) {
-                onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
+        const initialize = async () => {
+            try {
+                if (!AGORA_APP_ID) {
+                    onSetTtsMessageRef.current("Agora App ID is not configured. Real-time audio will not work.");
+                    throw new Error("Agora App ID not configured");
+                }
+                
+                const initialRoom = await geminiService.getAudioRoomDetails(roomId);
+                if (!initialRoom) {
+                    onSetTtsMessageRef.current("Room not found.");
+                    throw new Error("Room not found");
+                }
+
+                if (initialRoom.kickedUserIds?.includes(currentUser.id)) {
+                    onSetTtsMessageRef.current("You have been removed from this room.");
+                    throw new Error("User kicked");
+                }
+                if (initialRoom.privacy === 'private' && initialRoom.host.id !== currentUser.id && !initialRoom.invitedUserIds?.includes(currentUser.id)) {
+                    onSetTtsMessageRef.current("This is a private room. You need an invitation to join.");
+                    throw new Error("Private room");
+                }
+
+                await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
+
+                client.on('user-published', handleUserPublished);
+                client.enableAudioVolumeIndicator();
+                client.on('volume-indicator', handleVolumeIndicator);
+                
+                const uid = parseInt(currentUser.id, 36) % 10000000;
+                
+                const token = await geminiService.getAgoraToken(roomId, uid);
+                if (!token) {
+                    onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
+                    throw new Error("Token fetch failed");
+                }
+                
+                await client.join(AGORA_APP_ID, roomId, token, uid);
+
+            } catch (error) {
+                console.error("Failed to initialize Live Room:", error);
                 onGoBackRef.current();
-                return;
             }
-            await client.join(AGORA_APP_ID, roomId, token, uid);
         };
 
-        geminiService.getAudioRoomDetails(roomId).then(initialRoom => {
-            if (initialRoom) {
-                geminiService.joinLiveAudioRoom(currentUser.id, roomId).then(() => setupAgora(initialRoom));
-            } else {
-                onSetTtsMessageRef.current("Room not found.");
-                onGoBackRef.current();
-            }
-        });
+        initialize();
 
         return () => {
             client.off('user-published', handleUserPublished);

@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { LiveVideoRoom, User, VideoParticipantState } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+// FIX: Import `Call` type to resolve type error
+import { LiveVideoRoom, User, VideoParticipantState, Call } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
 import { getTtsPrompt, AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
 import { useSettings } from '../contexts/SettingsContext';
+// FIX: Import `firebaseService` to resolve reference error
+import { firebaseService } from '../services/firebaseService';
 
 interface LiveVideoRoomScreenProps {
   currentUser: User;
@@ -91,57 +94,75 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
-    const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+    const [isMicAvailable, setIsMicAvailable] = useState(true);
+    const [isCamAvailable, setIsCamAvailable] = useState(true);
+    const [callDuration, setCallDuration] = useState(0);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const localVideoTrack = useRef<ICameraVideoTrack | null>(null);
-    const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null); // For re-rendering
+    const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null);
+    const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+
+    const timerIntervalRef = useRef<number | null>(null);
+    const callStatusRef = useRef<Call['status'] | null>(null);
     const { language } = useSettings();
 
-    // Agora Lifecycle Management
+    // Timer effect
     useEffect(() => {
-        if (!AGORA_APP_ID) {
-            onSetTtsMessage("Agora App ID is not configured. Real-time video will not work.");
-            console.error("Agora App ID is not configured in constants.ts");
-            onGoBack();
-            return;
+        if (room?.status === 'live' && !timerIntervalRef.current) {
+            timerIntervalRef.current = window.setInterval(() => {
+                setCallDuration(d => d + 1);
+            }, 1000);
+        } else if (room?.status !== 'live' && timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
         }
+        return () => {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        };
+    }, [room?.status]);
+    
+    const handleHangUp = useCallback(() => {
+        firebaseService.endLiveVideoRoom(currentUser.id, roomId);
+        onGoBack();
+    }, [roomId, currentUser.id, onGoBack]);
 
-        const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-        agoraClient.current = client;
-
-        const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
-            await client.subscribe(user, mediaType);
-            if (mediaType === 'audio') {
-                user.audioTrack?.play();
+    // Agora Lifecycle
+    useEffect(() => {
+        const initializeAndJoin = async () => {
+            if (!AGORA_APP_ID) {
+                onSetTtsMessage("Agora App ID is not configured. Real-time video will not work.");
+                console.error("Agora App ID is not configured in constants.ts");
+                throw new Error("Agora App ID not configured");
             }
-            setRemoteUsers(Array.from(client.remoteUsers));
-        };
+            
+            const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+            agoraClient.current = client;
 
-        const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
-            setRemoteUsers(Array.from(client.remoteUsers));
-        };
-
-        const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
-            setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
-        };
-        
-        const handleVolumeIndicator = (volumes: any[]) => {
-            if (volumes.length === 0) {
-                setActiveSpeakerId(null);
-                return;
+            const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+                await client.subscribe(user, mediaType);
+                if (mediaType === 'audio') user.audioTrack?.play();
+                setRemoteUsers(Array.from(client.remoteUsers));
             };
-            const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max);
-            if (mainSpeaker.level > 5) { // Threshold to avoid flickering
-                setActiveSpeakerId(mainSpeaker.uid.toString());
-            } else {
-                setActiveSpeakerId(null);
-            }
-        };
+    
+            const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
+                setRemoteUsers(Array.from(client.remoteUsers));
+            };
+    
+            const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
+                setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
+            };
+            
+            const handleVolumeIndicator = (volumes: any[]) => {
+                if (volumes.length === 0) { setActiveSpeakerId(null); return; }
+                const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
+                setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
+            };
 
-        const joinAndPublish = async () => {
             try {
+                await geminiService.joinLiveVideoRoom(currentUser.id, roomId);
+                
                 client.on('user-published', handleUserPublished);
                 client.on('user-unpublished', handleUserUnpublished);
                 client.on('user-left', handleUserLeft);
@@ -149,17 +170,24 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.on('volume-indicator', handleVolumeIndicator);
 
                 const token = await geminiService.getAgoraToken(roomId, currentUser.id);
-                if (!token) {
-                    throw new Error("Failed to retrieve Agora token. The video call cannot proceed.");
-                }
+                if (!token) throw new Error("Failed to retrieve Agora token.");
+                
                 await client.join(AGORA_APP_ID, roomId, token, currentUser.id);
 
-                const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-                localAudioTrack.current = audioTrack;
-                localVideoTrack.current = videoTrack;
-                setLocalVideoTrackState(videoTrack);
-
-                await client.publish([audioTrack, videoTrack]);
+                try {
+                    const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                    localAudioTrack.current = audioTrack;
+                    localVideoTrack.current = videoTrack;
+                    setLocalVideoTrackState(videoTrack);
+                    await client.publish([audioTrack, videoTrack]);
+                } catch (mediaError) {
+                     console.warn("Could not get local media tracks:", mediaError);
+                     onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
+                     setIsMicAvailable(false);
+                     setIsCamAvailable(false);
+                     setIsMuted(true);
+                     setIsCameraOff(true);
+                }
             } catch (error: any) {
                 console.error("Agora failed to join or publish:", error);
                 if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
@@ -173,21 +201,15 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             }
         };
 
-        geminiService.joinLiveVideoRoom(currentUser.id, roomId).then(joinAndPublish);
+        initializeAndJoin();
 
         return () => {
-            client.off('user-published', handleUserPublished);
-            client.off('user-unpublished', handleUserUnpublished);
-            client.off('user-left', handleUserLeft);
-            client.off('volume-indicator', handleVolumeIndicator);
-
             localAudioTrack.current?.stop();
             localAudioTrack.current?.close();
             localVideoTrack.current?.stop();
             localVideoTrack.current?.close();
-
-            client.leave();
-            geminiService.leaveLiveVideoRoom(currentUser.id, roomId);
+            agoraClient.current?.leave();
+            firebaseService.leaveLiveVideoRoom(currentUser.id, roomId);
         };
     }, [roomId, currentUser.id, onGoBack, onSetTtsMessage, language]);
     
@@ -197,73 +219,71 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         const unsubscribe = geminiService.listenToVideoRoom(roomId, (roomDetails) => {
             if (roomDetails) {
                 setRoom(roomDetails);
+                 callStatusRef.current = roomDetails.status;
+                 if(roomDetails.status === 'ended') {
+                     setTimeout(() => onGoBack(), 2000);
+                 }
             } else {
-                onGoBack(); // Room has ended or doesn't exist
+                onGoBack();
             }
             setIsLoading(false);
         });
-
-        return () => unsubscribe(); // Cleanup subscription on unmount
+        return () => unsubscribe();
     }, [roomId, onGoBack]);
     
     const toggleMute = () => {
-        if (!localAudioTrack.current) return;
+        if (!isMicAvailable) return;
         const muted = !isMuted;
-        localAudioTrack.current.setMuted(muted);
+        localAudioTrack.current?.setMuted(muted);
         setIsMuted(muted);
     };
 
     const toggleCamera = () => {
-        if (!localVideoTrack.current) return;
+        if (!isCamAvailable) return;
         const cameraOff = !isCameraOff;
-        localVideoTrack.current.setEnabled(!cameraOff);
+        localVideoTrack.current?.setEnabled(!cameraOff);
         setIsCameraOff(cameraOff);
     };
-    
-    const remoteUsersMap = useMemo(() => {
-        const map: Record<string, IAgoraRTCRemoteUser> = {};
-        remoteUsers.forEach(user => {
-            map[user.uid.toString()] = user;
-        });
-        return map;
-    }, [remoteUsers]);
+
+    const remoteUsersMap = Object.fromEntries(remoteUsers.map(user => [user.uid.toString(), user]));
     
     if (isLoading || !room) {
         return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Video Room...</div>;
     }
+
+    const localParticipantState: VideoParticipantState = { ...currentUser, isMuted, isCameraOff };
     
     const allParticipants = [
-        ...room.participants,
-        { ...currentUser, isMuted, isCameraOff }
-    ];
+      localParticipantState,
+      ...room.participants.filter(p => p.id !== currentUser.id),
+    ].sort((a, b) => {
+        if (a.id === room.host.id) return -1;
+        if (b.id === room.host.id) return 1;
+        if (a.id === currentUser.id) return -1;
+        if (b.id === currentUser.id) return 1;
+        return a.name.localeCompare(b.name);
+    });
     
-    const participantsMap = new Map<string, VideoParticipantState>();
-    allParticipants.forEach(p => participantsMap.set(p.id, { ...p, isMuted: remoteUsersMap[p.id]?.audioTrack ? p.isMuted : true, isCameraOff: remoteUsersMap[p.id]?.videoTrack ? p.isCameraOff : true }));
-    participantsMap.set(currentUser.id, { ...currentUser, isMuted, isCameraOff });
+    const formatDuration = (seconds: number) => {
+        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const secs = (seconds % 60).toString().padStart(2, '0');
+        return `${mins}:${secs}`;
+    };
 
-    const participantsWithLocal = Array.from(participantsMap.values())
-        .sort((a, b) => {
-            if (a.id === room.host.id) return -1;
-            if (b.id === room.host.id) return 1;
-            if (a.id === currentUser.id) return -1;
-            if (b.id === currentUser.id) return 1;
-            return a.name.localeCompare(b.name);
-        });
-    
     return (
         <div className="h-full w-full flex flex-col bg-slate-900 text-white">
             <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
                 <div>
                     <h1 className="text-xl font-bold truncate">{room.topic}</h1>
-                    <p className="text-sm text-slate-400">{participantsWithLocal.length} participant(s)</p>
+                    <p className="text-sm text-slate-400">{room.status === 'live' ? formatDuration(callDuration) : 'Call Ended'}</p>
                 </div>
-                <button onClick={onGoBack} className="bg-red-600 hover:bg-red-500 font-bold py-2 px-4 rounded-lg">
+                <button onClick={handleHangUp} className="bg-red-600 hover:bg-red-500 font-bold py-2 px-4 rounded-lg">
                     Leave
                 </button>
             </header>
 
             <main className="flex-grow p-4 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-min overflow-y-auto">
-                {participantsWithLocal.map(p => (
+                {allParticipants.map(p => (
                     <ParticipantVideo
                         key={p.id}
                         participant={p}
@@ -277,15 +297,17 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             </main>
 
             <footer className="flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-6">
-                 <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
-                    <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
+                 <button onClick={toggleMute} disabled={!isMicAvailable} className={`p-4 rounded-full transition-colors ${!isMicAvailable ? 'bg-red-600/50 cursor-not-allowed' : isMuted ? 'bg-rose-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
+                    <Icon name={!isMicAvailable || isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
                 </button>
-                 <button onClick={toggleCamera} className={`p-4 rounded-full transition-colors ${isCameraOff ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
-                    <Icon name={isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-6 h-6" />
+                 <button onClick={toggleCamera} disabled={!isCamAvailable} className={`p-4 rounded-full transition-colors ${!isCamAvailable ? 'bg-red-600/50 cursor-not-allowed' : isCameraOff ? 'bg-rose-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
+                    <Icon name={!isCamAvailable || isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-6 h-6" />
+                </button>
+                <button onClick={handleHangUp} className="p-4 rounded-full bg-red-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" transform="rotate(-135 12 12)"/></svg>
                 </button>
             </footer>
         </div>
     );
 };
-
 export default LiveVideoRoomScreen;
