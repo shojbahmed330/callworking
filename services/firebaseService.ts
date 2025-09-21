@@ -705,15 +705,18 @@ export const firebaseService = {
     // --- AGORA TOKEN ---
     getAgoraToken: async (channelName: string, uid: string | number): Promise<string | null> => {
         try {
-            // Use the local proxy serverless function
-            const proxyUrl = `/api/proxy?channelName=${channelName}&uid=${uid}`;
-            const response = await fetch(proxyUrl);
+            // Use the local token serverless function
+            const tokenUrl = `/api/token?channelName=${channelName}&uid=${uid}`;
+            const response = await fetch(tokenUrl);
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`Token proxy error: ${response.status} ${errorText}`);
-                throw new Error(`Failed to fetch token via proxy: ${response.statusText}`);
+                console.error(`Token server error: ${response.status} ${errorText}`);
+                throw new Error(`Failed to fetch token: ${response.statusText}`);
             }
             const data = await response.json();
+            if (!data.rtcToken) {
+              throw new Error("Token server response did not include rtcToken.");
+            }
             return data.rtcToken;
         } catch (error) {
             console.error("Error fetching Agora token:", error);
