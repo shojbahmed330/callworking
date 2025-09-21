@@ -26,14 +26,14 @@ const NavItem: React.FC<{
                 onClick={onClick}
                 className={`w-full flex items-center gap-4 p-3 rounded-lg text-lg transition-colors ${
                     isActive
-                        ? 'bg-lime-500/10 text-lime-300 font-bold'
-                        : 'text-lime-400/80 hover:bg-slate-800 hover:text-lime-300'
+                        ? 'bg-fuchsia-500/10 text-fuchsia-300 font-bold'
+                        : 'text-fuchsia-400/80 hover:bg-slate-800 hover:text-fuchsia-300'
                 }`}
             >
                 <Icon name={iconName} className="w-7 h-7" />
                 <span>{label}</span>
                 {badgeCount > 0 && (
-                    <span className="ml-auto bg-lime-500 text-black text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                    <span className="ml-auto bg-fuchsia-500 text-black text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
                         {badgeCount}
                     </span>
                 )}
@@ -44,17 +44,17 @@ const NavItem: React.FC<{
 
 const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendRequestCount, activeView, voiceCoins, voiceState, onMicClick, isChatRecording }) => {
   const getFabClass = () => {
-    let base = "w-full text-black font-bold text-lg py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2";
+    let base = "w-full text-white font-bold text-lg py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2";
     if (isChatRecording) {
       return `${base} bg-slate-500 cursor-not-allowed`;
     }
     switch (voiceState) {
         case VoiceState.LISTENING:
-            return `${base} bg-red-500 ring-4 ring-red-500/50 animate-pulse text-white`;
+            return `${base} bg-red-500 ring-4 ring-red-500/50 animate-pulse`;
         case VoiceState.PROCESSING:
-            return `${base} bg-yellow-600 cursor-not-allowed text-black`;
+            return `${base} bg-yellow-600 cursor-not-allowed`;
         default: // IDLE
-            return `${base} bg-lime-600 hover:bg-lime-500`;
+            return `${base} bg-fuchsia-600 hover:bg-fuchsia-500`;
     }
   };
 
@@ -83,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
   };
 
   return (
-    <aside className="w-72 flex-shrink-0 hidden md:flex flex-col py-6">
+    <aside className="w-72 bg-black/20 backdrop-blur-md flex-shrink-0 hidden md:flex flex-col p-4">
       <div className="flex-grow">
         {/* Profile Section */}
         <button
@@ -92,8 +92,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
         >
           <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-12 h-12 rounded-full" />
           <div>
-            <p className="font-bold text-lime-200 text-lg">{currentUser.name}</p>
-            <p className="text-sm text-lime-500">View Profile</p>
+            <p className="font-bold text-fuchsia-200 text-lg">{currentUser.name}</p>
+            <p className="text-sm text-fuchsia-500">View Profile</p>
           </div>
         </button>
 
@@ -134,7 +134,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
             <NavItem
                 iconName="message"
                 label="Messages"
-                // FIX: Property 'MESSAGES' does not exist on type 'typeof AppView'. Corrected to CONVERSATIONS.
                 isActive={activeView === AppView.CONVERSATIONS}
                 onClick={() => onNavigate('messages')}
             />
@@ -161,12 +160,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onNavigate, friendReques
       </div>
 
       {/* Voice Coins */}
-      <div className="mb-4 bg-slate-900 shadow-md rounded-lg flex items-center justify-between p-3 border border-lime-500/20">
+      <div className="mb-4 bg-slate-900/50 shadow-md rounded-lg flex items-center justify-between p-3 border border-fuchsia-500/20">
           <div className="flex items-center gap-3">
               <Icon name="coin" className="w-8 h-8 text-yellow-400" />
               <div>
-                  <p className="font-semibold text-lime-300">Voice Coins</p>
-                  <p className="text-xs text-lime-500">For AI features</p>
+                  <p className="font-semibold text-fuchsia-300">Voice Coins</p>
+                  <p className="text-xs text-fuchsia-500">For AI features</p>
               </div>
           </div>
           <p className="text-2xl font-bold text-yellow-400">{voiceCoins}</p>

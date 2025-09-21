@@ -31,7 +31,7 @@ const VoiceCommandInput: React.FC<VoiceCommandInputProps> = ({ onSendCommand, vo
       case VoiceState.PROCESSING:
         return 'text-yellow-500';
       default:
-        return 'text-lime-400';
+        return 'text-fuchsia-400';
     }
   };
 
@@ -42,7 +42,7 @@ const VoiceCommandInput: React.FC<VoiceCommandInputProps> = ({ onSendCommand, vo
     : placeholder || "Say or type a command...";
 
   return (
-    <form onSubmit={handleSubmit} className="w-full bg-slate-800 p-3 border-t border-slate-700">
+    <form onSubmit={handleSubmit} className="w-full bg-black/30 p-2">
       <div className="relative flex items-center">
         <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
           <Icon name="mic" className={`w-5 h-5 ${getIndicatorColor()}`} />
@@ -52,7 +52,7 @@ const VoiceCommandInput: React.FC<VoiceCommandInputProps> = ({ onSendCommand, vo
           value={value}
           onChange={(e) => onValueChange(e.target.value)}
           placeholder={placeholderText}
-          className="bg-slate-900 border border-slate-700 text-slate-100 text-base rounded-lg focus:ring-lime-500 focus:border-lime-500 block w-full pl-11 pr-16 py-3 transition"
+          className="bg-slate-900/70 border border-fuchsia-500/30 text-slate-100 text-base rounded-full focus:ring-2 focus:ring-fuchsia-500 focus:border-fuchsia-500 block w-full pl-11 pr-16 py-3 transition"
           disabled={isListening || isChatRecording}
         />
         
@@ -66,7 +66,7 @@ const VoiceCommandInput: React.FC<VoiceCommandInputProps> = ({ onSendCommand, vo
                         onMicClick();
                     }
                 }}
-                className="w-12 h-12 rounded-full bg-lime-600 hover:bg-lime-500 text-black flex items-center justify-center transition-all duration-200 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                className="w-12 h-12 rounded-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white flex items-center justify-center transition-all duration-200 disabled:bg-slate-600 disabled:cursor-not-allowed"
                 disabled={isListening || isChatRecording}
                 aria-label={hasText ? "Send command" : "Use voice command"}
             >
@@ -87,10 +87,10 @@ const VoiceCommandInput: React.FC<VoiceCommandInputProps> = ({ onSendCommand, vo
 
         {/* --- Desktop Buttons: original layout --- */}
         <div className="absolute inset-y-0 right-0 hidden md:flex items-center">
-            <button type="button" onClick={onMicClick} title="Use voice command" className="p-2 rounded-full text-slate-400 hover:text-lime-500 transition-colors mr-14 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isChatRecording}>
+            <button type="button" onClick={onMicClick} title="Use voice command" className="p-2 rounded-full text-slate-400 hover:text-fuchsia-500 transition-colors mr-14 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isChatRecording}>
                 <Icon name="mic" className={`w-7 h-7 ${isListening ? 'text-rose-500' : 'text-slate-400'}`} />
             </button>
-            <button type="submit" className="h-full px-4 text-slate-400 hover:text-lime-500 transition-colors font-semibold" disabled={isChatRecording}>
+            <button type="submit" className="h-full px-4 text-slate-400 hover:text-fuchsia-500 transition-colors font-semibold" disabled={isChatRecording}>
                 Send
             </button>
         </div>
