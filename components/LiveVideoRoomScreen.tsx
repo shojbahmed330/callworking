@@ -148,15 +148,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
 
-                function stringToUint32(str: string): number {
-                    let hash = 0;
-                    for (let i = 0; i < str.length; i++) {
-                        const char = str.charCodeAt(i);
-                        hash = (hash * 31 + char) & 0xFFFFFFFF;
-                    }
-                    return hash >>> 0;
-                }
-                const uid = stringToUint32(currentUser.id);
+                const uid = currentUser.id;
 
                 const token = await geminiService.getAgoraToken(roomId, uid);
                 if (!token) {

@@ -108,15 +108,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
                 firebaseService.updateCallStatus(callId, 'ended');
             });
             
-            function stringToUint32(str: string): number {
-                let hash = 0;
-                for (let i = 0; i < str.length; i++) {
-                    const char = str.charCodeAt(i);
-                    hash = (hash * 31 + char) & 0xFFFFFFFF;
-                }
-                return hash >>> 0;
-            }
-            const uid = stringToUint32(currentUser.id);
+            const uid = currentUser.id;
 
             const token = await geminiService.getAgoraToken(callId, uid);
             if (!token) {
