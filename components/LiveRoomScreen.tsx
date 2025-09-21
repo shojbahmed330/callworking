@@ -35,7 +35,8 @@ const ChatPanel: React.FC<{
     roomId: string;
     currentUser: User;
     onClose?: () => void;
-}> = ({ roomId, currentUser, onClose }) => {
+    isMobileOverlay?: boolean;
+}> = ({ roomId, currentUser, onClose, isMobileOverlay }) => {
     const [messages, setMessages] = useState<LiveRoomMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -69,7 +70,7 @@ const ChatPanel: React.FC<{
     };
 
     return (
-        <div className="h-full w-full bg-slate-900/80 backdrop-blur-sm border-l border-slate-700/50 flex flex-col">
+        <div className={`h-full w-full bg-slate-900/80 backdrop-blur-sm border-l border-slate-700/50 flex flex-col ${isMobileOverlay ? 'pb-32' : ''}`}>
             <header className="flex-shrink-0 p-3 flex justify-between items-center border-b border-slate-700/50">
                 <h3 className="text-lg font-bold text-slate-100">Live Chat</h3>
                 {onClose && (
@@ -409,9 +410,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
             {/* Mobile Chat Overlay */}
             {isChatVisible && (
-                 <div className="md:hidden fixed inset-0 z-20 bg-black/50" onClick={() => setIsChatVisible(false)}>
+                 <div className="md:hidden fixed inset-0 z-[60] bg-black/50" onClick={() => setIsChatVisible(false)}>
                     <div className={`absolute bottom-0 left-0 right-0 h-[80%] transition-transform duration-300 ease-in-out ${isChatVisible ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
-                         <ChatPanel roomId={roomId} currentUser={currentUser} onClose={() => setIsChatVisible(false)} />
+                         <ChatPanel roomId={roomId} currentUser={currentUser} onClose={() => setIsChatVisible(false)} isMobileOverlay />
                     </div>
                 </div>
             )}
