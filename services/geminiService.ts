@@ -423,6 +423,7 @@ export const geminiService = {
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
     listenToLiveAudioRoomMessages: (roomId: string, callback: (messages: LiveAudioRoomMessage[]) => void) => firebaseService.listenToLiveAudioRoomMessages(roomId, callback),
     sendLiveAudioRoomMessage: (roomId: string, sender: User, text: string, isHost: boolean, isSpeaker: boolean) => firebaseService.sendLiveAudioRoomMessage(roomId, sender, text, isHost, isSpeaker),
+    reactToLiveAudioRoomMessage: (roomId: string, messageId: string, userId: string, emoji: string) => firebaseService.reactToLiveAudioRoomMessage(roomId, messageId, userId, emoji),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),
@@ -496,7 +497,7 @@ export const geminiService = {
             return { trending: [], forYou: [], questions: [], funnyVoiceNotes: [], newTalent: [] };
         }
 
-        const systemInstruction = `You are a social media content curator for VoiceBook. You will be given a list of posts in JSON format. Your task is to categorize these posts into the following categories: 'trending', 'forYou', 'questions', 'funnyVoiceNotes', 'newTalent'. Return a single JSON object with keys corresponding to these categories, and the values should be arrays of the original post objects that fit into that category. A post can appear in multiple categories if it fits. Base 'forYou' on general interest, not a specific user. 'trending' should be based on high engagement (reactions/comments). 'questions' are posts that ask a question. 'funnyVoiceNotes' are audio posts that seem humorous. 'newTalent' are posts from newer users or with unique content.`;
+        const systemInstruction = `You are a social media content curator for VoiceBook. You will be given a list of posts in JSON format. Your task is to categorize these posts into the following categories: 'trending', 'forYou', 'questions', 'funnyVoiceNotes', 'newTalent'. Return a single JSON object with keys corresponding to these categories, and the values should be an array of the original post objects that fit into that category. A post can appear in multiple categories if it fits. Base 'forYou' on general interest, not a specific user. 'trending' should be based on high engagement (reactions/comments). 'questions' are posts that ask a question. 'funnyVoiceNotes' are audio posts that seem humorous. 'newTalent' are posts from newer users or with unique content.`;
 
         try {
             const response = await ai.models.generateContent({

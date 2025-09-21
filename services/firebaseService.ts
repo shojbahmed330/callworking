@@ -1408,7 +1408,49 @@ listenToLiveAudioRoomMessages(roomId: string, callback: (messages: LiveAudioRoom
         callback(messages);
     });
 },
+async reactToLiveAudioRoomMessage(roomId: string, messageId: string, userId: string, emoji: string): Promise<void> {
+    const messageRef = db.collection('liveAudioRooms').doc(roomId).collection('messages').doc(messageId);
+    try {
+        await db.runTransaction(async (transaction) => {
+            const messageDoc = await transaction.get(messageRef);
+            if (!messageDoc.exists) {
+                throw "Message does not exist!";
+            }
+            const messageData = messageDoc.data();
+            const reactions = { ...(messageData.reactions || {}) };
 
+            let previousReaction: string | null = null;
+            for (const key in reactions) {
+                if (reactions[key].includes(userId)) {
+                    previousReaction = key;
+                    break;
+                }
+            }
+
+            if (previousReaction === emoji) {
+                reactions[previousReaction] = reactions[previousReaction].filter((id: string) => id !== userId);
+                if (reactions[previousReaction].length === 0) {
+                    delete reactions[previousReaction];
+                }
+            } else {
+                if (previousReaction) {
+                    reactions[previousReaction] = reactions[previousReaction].filter((id: string) => id !== userId);
+                     if (reactions[previousReaction].length === 0) {
+                        delete reactions[previousReaction];
+                    }
+                }
+                if (!reactions[emoji]) {
+                    reactions[emoji] = [];
+                }
+                reactions[emoji].push(userId);
+            }
+
+            transaction.update(messageRef, { reactions });
+        });
+    } catch (e) {
+        console.error("React to live room message transaction failed:", e);
+    }
+},
 async sendLiveAudioRoomMessage(roomId: string, sender: User, text: string, isHost: boolean, isSpeaker: boolean): Promise<void> {
     const messageData = {
         sender: {
@@ -1420,6 +1462,7 @@ async sendLiveAudioRoomMessage(roomId: string, sender: User, text: string, isHos
         isHost,
         isSpeaker,
         createdAt: serverTimestamp(),
+        reactions: {},
     };
     await db.collection('liveAudioRooms').doc(roomId).collection('messages').add(messageData);
 },

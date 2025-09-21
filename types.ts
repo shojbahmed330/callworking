@@ -267,6 +267,7 @@ export interface LiveAudioRoomMessage {
   createdAt: string; // ISO string
   isHost?: boolean;
   isSpeaker?: boolean;
+  reactions?: { [emoji: string]: string[] }; // Key: emoji, Value: array of user IDs
 }
 
 export interface VideoParticipantState extends User {

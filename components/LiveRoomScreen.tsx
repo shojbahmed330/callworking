@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { AppView, LiveAudioRoom, User, LiveAudioRoomMessage } from '../types';
+import { AppView, LiveAudioRoom, User, LiveAudioRoomMessage, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
-import { AGORA_APP_ID } from '../constants';
+import { AGORA_APP_ID, CHAT_THEMES } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
+
+const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '🎉', '🔥', '🙏'];
 
 interface LiveRoomScreenProps {
   currentUser: User;
@@ -20,7 +22,7 @@ const Avatar: React.FC<{ user: User; isHost?: boolean; isSpeaking?: boolean; chi
             <img 
                 src={user.avatarUrl}
                 alt={user.name}
-                className={`w-20 h-20 rounded-full border-4 transition-all duration-300 ${isSpeaking ? 'border-green-400 ring-4 ring-green-500/50' : 'border-slate-600'}`}
+                className={`w-20 h-20 rounded-full border-4 transition-all duration-300 ${isSpeaking ? 'border-green-400 ring-4 ring-green-500/50 animate-pulse' : 'border-slate-600'}`}
             />
             {isHost && <div className="absolute -bottom-2 -right-1 text-2xl">👑</div>}
         </div>
@@ -29,52 +31,125 @@ const Avatar: React.FC<{ user: User; isHost?: boolean; isSpeaking?: boolean; chi
     </div>
 );
 
-const ChatMessage: React.FC<{ message: LiveAudioRoomMessage; activeSpeakerId: string | null; isMe: boolean; }> = ({ message, activeSpeakerId, isMe }) => {
+const ChatMessage: React.FC<{ 
+    message: LiveAudioRoomMessage; 
+    activeSpeakerId: string | null; 
+    isMe: boolean;
+    theme: typeof CHAT_THEMES[ChatTheme];
+    onReact: (messageId: string, emoji: string) => void;
+}> = ({ message, activeSpeakerId, isMe, theme, onReact }) => {
     const isSpeaking = message.sender.id === activeSpeakerId;
+    const [isPickerOpen, setPickerOpen] = useState(false);
 
     const bubbleClasses = useMemo(() => {
-        const base = 'p-3 rounded-xl max-w-[90%] break-words relative';
+        const base = 'px-3 py-2 rounded-xl max-w-[90%] break-words relative backdrop-blur-sm transition-all duration-300';
         if (isMe) {
-            return `${base} bg-lime-800/60 ml-auto`;
+            return `${base} ${theme.myBubble} bg-opacity-80 ml-auto rounded-br-none`;
         }
         if (message.isHost) {
-            return `${base} bg-amber-500/30 border border-amber-400/50`;
+            return `${base} bg-amber-500/40 border border-amber-400/50 rounded-bl-none`;
         }
         if (message.isSpeaker) {
-            return `${base} bg-sky-500/30 border border-sky-400/50`;
+            return `${base} bg-sky-500/40 border border-sky-400/50 rounded-bl-none`;
         }
-        return `${base} bg-slate-700/50`;
-    }, [isMe, message.isHost, message.isSpeaker]);
+        return `${base} bg-slate-700/50 rounded-bl-none`;
+    }, [isMe, message.isHost, message.isSpeaker, theme]);
 
-    const glowClass = isSpeaking ? 'shadow-[0_0_15px_rgba(56,189,248,0.6)] transition-shadow duration-300' : '';
+    const glowClass = isSpeaking ? 'shadow-[0_0_15px_rgba(57,255,20,0.7)]' : '';
     
-    const timeAgo = useMemo(() => {
-        const date = new Date(message.createdAt);
-        if (isNaN(date.getTime())) return 'now';
-        const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-        if (seconds < 60) return `now`;
-        const minutes = Math.floor(seconds / 60);
-        return `${minutes}m ago`;
-    }, [message.createdAt]);
+    const reactionSummary = useMemo(() => {
+        if (!message.reactions || Object.keys(message.reactions).length === 0) return null;
+        return Object.entries(message.reactions)
+            .filter(([, userIds]) => userIds.length > 0)
+            .map(([emoji, userIds]) => ({ emoji, count: userIds.length }))
+            .sort((a, b) => b.count - a.count);
+    }, [message.reactions]);
 
     return (
-        <div className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
-            {!isMe && <img src={message.sender.avatarUrl} alt={message.sender.name} className="w-8 h-8 rounded-full mt-1 flex-shrink-0" />}
-            <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                {!isMe && (
-                    <div className="flex items-baseline gap-2 px-1">
-                        <p className="text-sm font-semibold text-slate-300">{message.sender.name}</p>
-                        {message.isHost && <span title="Host">👑</span>}
+        <div className="flex flex-col animate-fade-in-fast">
+            <div className={`flex items-start gap-2 group ${isMe ? 'flex-row-reverse' : ''}`}>
+                 {!isMe && <img src={message.sender.avatarUrl} alt={message.sender.name} className="w-8 h-8 rounded-full mt-1 flex-shrink-0" />}
+                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} flex-grow`}>
+                    {!isMe && (
+                        <div className="flex items-baseline gap-2 px-1">
+                            <p className="text-sm font-bold" style={{ color: theme.headerText }}>
+                                {message.sender.name}
+                                {message.isHost && <span className="ml-1.5" title="Host">👑</span>}
+                            </p>
+                        </div>
+                    )}
+                    <div className="relative w-full">
+                        <div className={`inline-block ${isMe ? 'ml-auto' : ''}`}>
+                             <div className={`${bubbleClasses} ${glowClass}`}>
+                                <p className={`text-base ${theme.text} word-break`}>{message.text}</p>
+                            </div>
+                        </div>
+                        <div className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-900/50 backdrop-blur-sm border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'}`}>
+                             <button onClick={() => setPickerOpen(p => !p)} className="text-lg">😀</button>
+                        </div>
+
+                        {isPickerOpen && (
+                            <div className={`absolute bottom-full mb-1 p-1.5 rounded-full bg-slate-900/80 backdrop-blur-sm border border-slate-600 flex items-center gap-1 shadow-lg z-10 ${isMe ? 'right-0' : 'left-0'}`}>
+                                {AVAILABLE_REACTIONS.map(emoji => (
+                                    <button key={emoji} onClick={() => { onReact(message.id, emoji); setPickerOpen(false); }} className="text-2xl p-1 rounded-full hover:bg-slate-700/50 transition-transform hover:scale-125">
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                )}
-                <div className={`${bubbleClasses} ${glowClass}`}>
-                    <p className="text-white text-base">{message.text}</p>
+                    {reactionSummary && (
+                        <div className={`flex gap-1.5 mt-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            {reactionSummary.map(({ emoji, count }) => (
+                                <div key={emoji} className="bg-slate-700/60 rounded-full px-2 py-0.5 text-xs flex items-center gap-1">
+                                    <span>{emoji}</span>
+                                    <span className="text-slate-300 font-semibold">{count}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-                <span className="text-xs text-slate-500 mt-1 px-1">{timeAgo}</span>
             </div>
         </div>
     );
 };
+
+const ThemePicker: React.FC<{onSelect: (theme: any) => void, onClose: () => void}> = ({ onSelect, onClose }) => {
+    return (
+        <div className="absolute top-14 right-4 z-40 bg-slate-800/80 backdrop-blur-md border border-slate-600 rounded-lg p-2 shadow-2xl animate-fade-in-fast">
+             <div className="grid grid-cols-3 gap-2">
+                {Object.entries(CHAT_THEMES).map(([key, theme]) => (
+                    <button key={key} onClick={() => onSelect(theme)} className="flex flex-col items-center gap-1 p-1 rounded-md hover:bg-slate-700/50">
+                        <div className={`w-12 h-8 rounded-md bg-gradient-to-br ${theme.bgGradient} flex items-center justify-end p-1`}>
+                             <div className={`w-4 h-3 rounded ${theme.myBubble}`}></div>
+                        </div>
+                        <p className="text-xs text-slate-300">{theme.name}</p>
+                    </button>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+const BackgroundParticles: React.FC = () => (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {Array.from({ length: 20 }).map((_, i) => (
+            <div
+                key={i}
+                className="particle"
+                style={{
+                    '--size': `${Math.random() * 2 + 1}px`,
+                    '--x-start': `${Math.random() * 100}vw`,
+                    '--y-start': `${Math.random() * 100}vh`,
+                    '--x-end': `${Math.random() * 100}vw`,
+                    '--y-end': `${Math.random() * 100}vh`,
+                    '--duration': `${Math.random() * 20 + 15}s`,
+                    '--delay': `-${Math.random() * 20}s`,
+                } as React.CSSProperties}
+            />
+        ))}
+    </div>
+);
 
 
 const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, onNavigate, onGoBack, onSetTtsMessage }) => {
@@ -88,9 +163,15 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     
     const [messages, setMessages] = useState<LiveAudioRoomMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
+    const [activeTheme, setActiveTheme] = useState(CHAT_THEMES.default);
+    const [isThemePickerOpen, setThemePickerOpen] = useState(false);
+    const [floatingEmojis, setFloatingEmojis] = useState<{ id: number; emoji: string; }[]>([]);
+    const prevReactionsRef = useRef<Record<string, Record<string, number>>>({});
+
+
     const onGoBackRef = useRef(onGoBack);
     const onSetTtsMessageRef = useRef(onSetTtsMessage);
 
@@ -187,7 +268,33 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     }, [roomId]);
 
     useEffect(() => {
-        const unsubscribe = geminiService.listenToLiveAudioRoomMessages(roomId, setMessages);
+        const unsubscribe = geminiService.listenToLiveAudioRoomMessages(roomId, (newMessages) => {
+            const newReactions: Record<string, Record<string, number>> = {};
+            newMessages.forEach(msg => {
+                newReactions[msg.id] = {};
+                if(msg.reactions) {
+                    Object.entries(msg.reactions).forEach(([emoji, users]) => {
+                        newReactions[msg.id][emoji] = users.length;
+                    });
+                }
+            });
+
+            // Compare with previous state to find new reactions
+            newMessages.forEach(msg => {
+                if (msg.reactions) {
+                    Object.entries(msg.reactions).forEach(([emoji, users]) => {
+                        const prevCount = prevReactionsRef.current[msg.id]?.[emoji] || 0;
+                        if (users.length > prevCount) {
+                            // A new reaction was added
+                             setFloatingEmojis(prev => [...prev, { id: Date.now() + Math.random(), emoji }]);
+                        }
+                    });
+                }
+            });
+
+            prevReactionsRef.current = newReactions;
+            setMessages(newMessages);
+        });
         return () => unsubscribe();
     }, [roomId]);
 
@@ -204,7 +311,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         const wasISpeakerBefore = !!localAudioTrack.current;
 
         const handleRoleChange = async () => {
-            // Promotion: Listener -> Speaker (or Host joining)
             if (amISpeakerNow && !wasISpeakerBefore) {
                 try {
                     const track = await AgoraRTC.createMicrophoneAudioTrack();
@@ -217,7 +323,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     onSetTtsMessageRef.current("Could not activate microphone.");
                 }
             }
-            // Demotion: Speaker -> Listener
             else if (!amISpeakerNow && wasISpeakerBefore) {
                 try {
                     if (localAudioTrack.current) {
@@ -236,9 +341,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
     }, [room, currentUser.id]);
 
-    const handleLeave = () => {
-        onGoBack();
-    };
+    const handleLeave = () => onGoBack();
     
     const handleEndRoom = () => {
         if (window.confirm('Are you sure you want to end this room for everyone?')) {
@@ -273,7 +376,10 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             onSetTtsMessage("Could not send message.");
         }
     };
-
+    
+    const handleReact = (messageId: string, emoji: string) => {
+        geminiService.reactToLiveAudioRoomMessage(roomId, messageId, currentUser.id, emoji);
+    };
 
     if (isLoading || !room) {
         return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Room...</div>;
@@ -283,7 +389,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const hasRaisedHand = room.raisedHands.includes(currentUser.id);
     const raisedHandUsers = room.listeners.filter(u => room.raisedHands.includes(u.id));
 
-    // Map Agora UID to User ID for speaking indicator
     const speakerIdMap = new Map<string, string>();
     room.speakers.forEach(s => {
         const agoraUID = (parseInt(s.id, 36) % 10000000).toString();
@@ -293,7 +398,40 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const activeAppSpeakerId = activeSpeakerId ? speakerIdMap.get(activeSpeakerId) : null;
 
     return (
-        <div className="h-full w-full flex flex-col md:flex-row bg-gradient-to-b from-slate-900 to-black text-white overflow-hidden">
+        <div className="h-full w-full flex flex-col md:flex-row bg-slate-900 text-white overflow-hidden">
+             <style>{`
+                @keyframes fade-in-fast {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
+                .word-break { word-break: break-word; }
+
+                @keyframes float-up {
+                    0% { transform: translateY(0) scale(0.5); opacity: 1; }
+                    100% { transform: translateY(-150px) scale(1.5); opacity: 0; }
+                }
+                .floating-emoji {
+                    position: absolute;
+                    bottom: 80px;
+                    left: 50%;
+                    animation: float-up 3s ease-out forwards;
+                    pointer-events: none;
+                }
+                @keyframes particle-anim {
+                    from { transform: translate3d(var(--x-start), var(--y-start), 0); opacity: 1; }
+                    to { transform: translate3d(var(--x-end), var(--y-end), 0); opacity: 0; }
+                }
+                .particle {
+                    position: absolute;
+                    background: white;
+                    border-radius: 50%;
+                    width: var(--size);
+                    height: var(--size);
+                    opacity: 0;
+                    animation: particle-anim var(--duration) var(--delay) linear infinite;
+                }
+             `}</style>
             <div className="flex-grow flex flex-col h-full overflow-hidden">
                 <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
                     <div>
@@ -347,7 +485,12 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     </section>
                 </main>
                 
-                <footer className="flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-4">
+                <footer className="relative flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-4">
+                     {floatingEmojis.map(emoji => (
+                        <div key={emoji.id} className="floating-emoji text-4xl" onAnimationEnd={() => setFloatingEmojis(f => f.filter(item => item.id !== emoji.id))}>
+                            {emoji.emoji}
+                        </div>
+                    ))}
                     <button
                         onClick={() => setIsChatOpen(true)}
                         className="md:hidden bg-slate-600 p-3 rounded-full"
@@ -369,27 +512,34 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 </footer>
             </div>
             
-            <aside className={`w-full md:w-80 lg:w-96 flex-shrink-0 bg-gradient-to-b from-gray-900/80 via-slate-900/90 to-black/80 backdrop-blur-sm border-l border-slate-700/50 flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isChatOpen ? 'translate-x-0' : 'translate-x-full'} absolute top-0 right-0 h-full z-30`}>
-                 <header className="p-4 flex-shrink-0 border-b border-slate-700/50 flex justify-between items-center">
+            <aside className={`w-full md:w-80 lg:w-96 flex-shrink-0 bg-gradient-to-br ${activeTheme.bgGradient} backdrop-blur-sm border-l border-slate-700/50 flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isChatOpen ? 'translate-x-0' : 'translate-x-full'} absolute top-0 right-0 h-full z-30`}>
+                 <BackgroundParticles />
+                 <header className="p-4 flex-shrink-0 border-b border-white/10 flex justify-between items-center z-10">
                     <h2 className="font-bold text-lg">Room Chat</h2>
-                    <button onClick={() => setIsChatOpen(false)} className="md:hidden p-2 rounded-full hover:bg-slate-700">
-                        <Icon name="close" className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setThemePickerOpen(p => !p)} className="p-2 rounded-full hover:bg-white/10">
+                            <Icon name="swatch" className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => setIsChatOpen(false)} className="md:hidden p-2 rounded-full hover:bg-white/10">
+                            <Icon name="close" className="w-5 h-5" />
+                        </button>
+                    </div>
                 </header>
-                <div className="flex-grow p-4 overflow-y-auto space-y-4">
+                 {isThemePickerOpen && <ThemePicker onSelect={theme => { setActiveTheme(theme); setThemePickerOpen(false); }} onClose={() => setThemePickerOpen(false)}/>}
+                <div className="flex-grow p-4 overflow-y-auto space-y-4 z-10">
                     {messages.map(msg => (
-                        <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} />
+                        <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} theme={activeTheme} onReact={handleReact} />
                     ))}
                     <div ref={messagesEndRef} />
                 </div>
-                <footer className="p-3 flex-shrink-0 border-t border-slate-700/50">
+                <footer className="p-3 flex-shrink-0 border-t border-white/10 bg-black/20 z-10">
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                         <input
                             type="text"
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder="Send a message..."
-                            className="w-full bg-slate-700/50 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500"
+                            className="w-full bg-slate-800/70 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500"
                         />
                         <button type="submit" className="p-2.5 bg-lime-600 rounded-full text-black hover:bg-lime-500 transition-colors disabled:bg-slate-500" disabled={!newMessage.trim()}>
                             <Icon name="paper-airplane" className="w-5 h-5" />
