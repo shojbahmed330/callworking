@@ -1597,26 +1597,6 @@ export const firebaseService = {
             }
         }
     },
-    async lowerHandInAudioRoom(userId: string, roomId: string): Promise<void> {
-        await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayRemove(userId) });
-    },
-    async toggleMuteInAudioRoom(roomId: string, speakerId: string, isMuted: boolean): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        await db.runTransaction(async (transaction) => {
-            const roomDoc = await transaction.get(roomRef);
-            if (!roomDoc.exists) {
-                throw "Room does not exist!";
-            }
-            const roomData = roomDoc.data() as LiveAudioRoom;
-            const speakers = roomData.speakers || [];
-            const speakerIndex = speakers.findIndex(s => s.id === speakerId);
-    
-            if (speakerIndex !== -1) {
-                speakers[speakerIndex].isMuted = isMuted;
-                transaction.update(roomRef, { speakers });
-            }
-        });
-    },
     async inviteFriendToRoom(inviter: User, friendId: string, room: LiveAudioRoom): Promise<void> {
         const notificationRef = db.collection('users').doc(friendId).collection('notifications').doc();
         await notificationRef.set({
@@ -1685,6 +1665,26 @@ export const firebaseService = {
                     ...data,
                     createdAt: data.createdAt.toDate().toISOString(),
                 } as LiveRoomEvent);
+            }
+        });
+    },
+    async lowerHandInAudioRoom(userId: string, roomId: string): Promise<void> {
+        await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayRemove(userId) });
+    },
+    async toggleMuteInAudioRoom(roomId: string, speakerId: string, isMuted: boolean): Promise<void> {
+        const roomRef = db.collection('liveAudioRooms').doc(roomId);
+        await db.runTransaction(async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists) {
+                throw "Room does not exist!";
+            }
+            const roomData = roomDoc.data() as LiveAudioRoom;
+            const speakers = roomData.speakers || [];
+            const speakerIndex = speakers.findIndex(s => s.id === speakerId);
+    
+            if (speakerIndex !== -1) {
+                speakers[speakerIndex].isMuted = isMuted;
+                transaction.update(roomRef, { speakers });
             }
         });
     },
