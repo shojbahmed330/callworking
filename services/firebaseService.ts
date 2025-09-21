@@ -709,18 +709,15 @@ export const firebaseService = {
             const response = await fetch(tokenUrl);
 
             if (!response.ok) {
-                let errorData: { error?: string } = {};
-                let errorMessage = 'Failed to fetch token from server.';
+                const responseText = await response.text();
+                let errorMessage = `Token server error: ${response.status}`;
                 try {
-                    errorData = await response.json();
-                    errorMessage = errorData.error || errorMessage;
+                    const errorJson = JSON.parse(responseText);
+                    errorMessage = errorJson.error || errorMessage;
                 } catch (e) {
-                    const errorText = await response.text();
-                    console.error("Non-JSON error response from token server:", response.status, errorText);
-                    errorMessage = `The token server returned an unreadable error (status: ${response.status}). This often means the AGORA_APP_CERTIFICATE environment variable is not set correctly on your hosting platform.`;
+                    errorMessage = responseText || errorMessage;
                 }
-                    
-                console.error("Token server error:", response.status, errorData);
+                console.error("Token server error details:", errorMessage);
                 throw new Error(errorMessage);
             }
 

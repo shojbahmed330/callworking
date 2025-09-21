@@ -16,8 +16,9 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
   if (!APP_ID || !APP_CERTIFICATE) {
-    console.error('Server configuration error: AGORA_APP_ID is missing from constants.ts or AGORA_APP_CERTIFICATE is not set in environment variables.');
-    return res.status(500).json({ error: 'Token server not configured.' });
+    const errorMessage = "CRITICAL SERVER ERROR: The AGORA_APP_CERTIFICATE is not set in the Vercel environment variables. Please add it to your project settings and redeploy.";
+    console.error(errorMessage);
+    return res.status(500).json({ error: errorMessage });
   }
 
   const { channelName, uid } = req.query;
@@ -33,14 +34,15 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
   try {
-    // The app uses string Firebase UIDs, so buildTokenWithAccount is correct.
-    // FIX: Corrected method name as suggested by the error message.
+    // FIX: The agora-token library's buildTokenWithUserAccount function expects 7 arguments in this version.
+    // The token expiration and privilege expiration are now separate. Setting them to the same value is standard.
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       APP_ID,
       APP_CERTIFICATE,
       String(channelName),
       userAccount,
       role,
+      privilegeExpiredTs,
       privilegeExpiredTs
     );
 
