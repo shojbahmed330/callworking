@@ -419,10 +419,9 @@ export const geminiService = {
     endLiveVideoRoom: (userId: string, roomId: string) => firebaseService.endLiveVideoRoom(userId, roomId),
     getAudioRoomDetails: (roomId: string) => firebaseService.getAudioRoomDetails(roomId),
     raiseHandInAudioRoom: (userId: string, roomId: string) => firebaseService.raiseHandInAudioRoom(userId, roomId),
-    // @FIX: Add missing Live Audio Room function delegations from firebaseService
-    lowerHandInAudioRoom: (userId: string, roomId: string) => firebaseService.lowerHandInAudioRoom(userId, roomId),
     inviteToSpeakInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.inviteToSpeakInAudioRoom(hostId, userId, roomId),
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
+    lowerHandInAudioRoom: (userId: string, roomId: string) => firebaseService.lowerHandInAudioRoom(userId, roomId),
     toggleMuteInAudioRoom: (roomId: string, speakerId: string, isMuted: boolean) => firebaseService.toggleMuteInAudioRoom(roomId, speakerId, isMuted),
     inviteFriendToRoom: (inviter: User, friendId: string, room: LiveAudioRoom) => firebaseService.inviteFriendToRoom(inviter, friendId, room),
     promoteToModeratorInAudioRoom: (hostId, targetUserId, roomId) => firebaseService.promoteToModeratorInAudioRoom(hostId, targetUserId, roomId),
