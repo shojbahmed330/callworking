@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { RtcTokenBuilder, RtcRole } from 'agora-token';
-import { AGORA_APP_ID } from '../constants';
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers for all responses
@@ -12,11 +11,12 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
   
-  const APP_ID = AGORA_APP_ID;
+  // FIX: AGORA_APP_ID should be retrieved from environment variables for security and proper deployment of a serverless function.
+  const APP_ID = process.env.AGORA_APP_ID;
   const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
   if (!APP_ID || !APP_CERTIFICATE) {
-    const errorMessage = "CRITICAL SERVER ERROR: The AGORA_APP_CERTIFICATE is not set in the Vercel environment variables. Please add it to your project settings and redeploy.";
+    const errorMessage = "CRITICAL SERVER ERROR: The AGORA_APP_ID or AGORA_APP_CERTIFICATE is not set in the Vercel environment variables. Please add them to your project settings and redeploy.";
     console.error(errorMessage);
     return res.status(500).json({ error: errorMessage });
   }
@@ -34,8 +34,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
   try {
-    // FIX: The agora-token library's buildTokenWithUserAccount function expects 7 arguments in this version.
-    // The token expiration and privilege expiration are now separate. Setting them to the same value is standard.
+    // FIX: Added the missing 7th argument `currentTimestamp` for the token creation timestamp.
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       APP_ID,
       APP_CERTIFICATE,
@@ -43,7 +42,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       userAccount,
       role,
       privilegeExpiredTs,
-      privilegeExpiredTs
+      currentTimestamp
     );
 
     return res.status(200).json({ rtcToken: token });
