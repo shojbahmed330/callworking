@@ -92,7 +92,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         };
 
         handleRoleChange();
-    }, [isSpeaker, agoraClient.current?.connectionState]);
+    }, [isSpeaker, onSetTtsMessage]);
 
     // Main Agora & Firebase Setup Effect
     useEffect(() => {
@@ -137,9 +137,10 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             
             // Join Firebase and then Agora
             await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
-            const token = await geminiService.getAgoraToken(roomId, currentUser.id);
+            const uid = parseInt(currentUser.id, 36) % 10000000;
+            const token = await geminiService.getAgoraToken(roomId, uid);
             if (!token) throw new Error("Failed to get Agora token.");
-            await client.join(AGORA_APP_ID, roomId, token, currentUser.id);
+            await client.join(AGORA_APP_ID, roomId, token, uid);
 
             isJoining.current = false;
             return unsubscribe;
