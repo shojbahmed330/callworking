@@ -239,7 +239,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     useEffect(() => {
         if (!room || !agoraClient.current) return;
 
-        const amISpeakerNow = room.speakers.some(s => s.id === currentUser.id);
+        const amISpeakerNow = room.speakers.some(s => s && s.id === currentUser.id);
         const wasISpeakerBefore = !!localAudioTrack.current;
 
         const handleRoleChange = async () => {
@@ -301,13 +301,13 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     }
     
     const isHost = room.host.id === currentUser.id;
-    const isSpeaker = room.speakers.some(s => s.id === currentUser.id);
+    const isSpeaker = room.speakers.filter(Boolean).some(s => s.id === currentUser.id);
     const isListener = !isSpeaker;
     const hasRaisedHand = room.raisedHands.includes(currentUser.id);
-    const raisedHandUsers = room.listeners.filter(u => room.raisedHands.includes(u.id));
+    const raisedHandUsers = room.listeners.filter(u => u && room.raisedHands.includes(u.id));
 
     const speakerIdMap = new Map<string, string>();
-    room.speakers.forEach(s => {
+    room.speakers.filter(Boolean).forEach(s => {
         const agoraUID = (parseInt(s.id, 36) % 10000000).toString();
         speakerIdMap.set(agoraUID, s.id);
     });
@@ -328,9 +328,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 
                 <main className="flex-grow overflow-y-auto p-6 space-y-8">
                     <section>
-                        <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
+                        <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.filter(Boolean).length})</h2>
                         <div className="flex flex-wrap gap-6">
-                            {room.speakers.map(speaker => (
+                            {room.speakers.filter(Boolean).map(speaker => (
                                 <Avatar key={speaker.id} user={speaker} isHost={speaker.id === room.host.id} isSpeaking={speaker.id === activeAppSpeakerId}>
                                     {isHost && speaker.id !== currentUser.id && (
                                         <button onClick={() => handleMoveToAudience(speaker.id)} className="text-xs text-red-400 hover:underline">Move to Audience</button>
@@ -344,7 +344,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         <section>
                             <h2 className="text-lg font-semibold text-green-400 mb-4">Requests to Speak ({raisedHandUsers.length})</h2>
                             <div className="flex flex-wrap gap-6 bg-slate-800/50 p-4 rounded-lg">
-                            {raisedHandUsers.map(user => (
+                            {raisedHandUsers.filter(Boolean).map(user => (
                                     <Avatar key={user.id} user={user}>
                                         <button onClick={() => handleInviteToSpeak(user.id)} className="text-xs bg-green-500 text-white px-2 py-1 rounded-md font-semibold">Invite to Speak</button>
                                     </Avatar>
@@ -354,9 +354,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     )}
 
                     <section>
-                        <h2 className="text-lg font-semibold text-slate-300 mb-4">Listeners ({room.listeners.length})</h2>
+                        <h2 className="text-lg font-semibold text-slate-300 mb-4">Listeners ({room.listeners.filter(Boolean).length})</h2>
                         <div className="flex flex-wrap gap-4">
-                            {room.listeners.map(listener => (
+                            {room.listeners.filter(Boolean).map(listener => (
                                 <div key={listener.id} className="relative" title={listener.name}>
                                     <img src={listener.avatarUrl} alt={listener.name} className="w-12 h-12 rounded-full" />
                                     {room.raisedHands.includes(listener.id) && (
