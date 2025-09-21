@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 // @FIX: Update import paths to be relative to the root directory
 import type { Post, User, Comment, GroupRole } from './types';
@@ -161,11 +162,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
   };
 
   const handleView = () => {
-      if (post.audioUrl) {
-        onPlayPause();
-      } else {
-        onViewPost(post.id);
-      }
+      onViewPost(post.id);
   }
 
   const handleAuthor = (e: React.MouseEvent) => {
@@ -291,13 +288,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
   const renderAudioPlayer = () => {
     if (post.audioUrl && post.audioUrl !== '#') {
       return (
-        <div className="relative h-24 bg-slate-800 rounded-xl overflow-hidden group/waveform mb-4 cursor-pointer" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
+        <div className="relative h-24 bg-slate-800 rounded-xl overflow-hidden group/waveform mb-4">
             <audio ref={audioRef} src={post.audioUrl} onEnded={onPlayPause} />
             <Waveform isPlaying={isPlaying && isActive} />
             <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 group-hover/waveform:opacity-100 transition-opacity duration-300">
             <button
-                aria-label={isPlaying && isActive ? "Pause post" : "Play post"}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onPlayPause();
+                }}
                 className="w-16 h-16 rounded-full bg-lime-600/70 text-black flex items-center justify-center transform scale-75 group-hover/waveform:scale-100 transition-transform duration-300 ease-in-out hover:bg-lime-500"
+                aria-label={isPlaying ? "Pause post" : "Play post"}
             >
                 <Icon name={isPlaying && isActive ? 'pause' : 'play'} className="w-8 h-8" />
             </button>
@@ -378,7 +379,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
       <div
         onClick={post.isSponsored ? handleAdClick : handleView}
         className={`
-          bg-slate-900/70 backdrop-blur-sm rounded-lg p-5 sm:p-6 w-full max-w-lg md:max-w-2xl mx-auto transition-all duration-300 ease-in-out border
+          bg-slate-900/70 backdrop-blur-sm rounded-lg p-5 sm:p-6 w-full max-w-lg mx-auto transition-all duration-300 ease-in-out border
           ${post.isSponsored ? 'cursor-pointer hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-800'}
           ${isActive ? 'border-lime-400/50 ring-2 ring-lime-400/20' : 'border-lime-500/20'}
         `}
@@ -387,11 +388,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
           <button onClick={handleAuthor} className="flex items-center text-left mb-4 group flex-grow">
             <img src={post.author.avatarUrl} alt={post.author.name} className="w-12 h-12 rounded-full mr-4 transition-all duration-300 group-hover:ring-2 group-hover:ring-offset-2 group-hover:ring-offset-black group-hover:ring-lime-500" />
             <div>
-              <div className="flex items-center flex-wrap">
+              <div className="flex items-center">
                   <p className="font-bold text-lime-200 text-lg transition-colors group-hover:text-lime-400">
-                    {post.isSponsored ? post.sponsorName : post.author.name}
+                  {post.isSponsored ? post.sponsorName : post.author.name}
                   </p>
-                  {post.feeling && <p className="font-normal text-lime-300/90 text-lg ml-1.5"> is feeling {post.feeling.emoji} {post.feeling.text}</p>}
                   {groupRole && <GroupRoleBadge role={groupRole} />}
               </div>
               <p className="text-lime-500 text-sm">
@@ -444,7 +444,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                   )}
                   <span className="text-sm text-lime-500 ml-2 hover:underline">{reactionCount}</span>
               </button>
-              <button onClick={() => onViewPost(post.id)} className="text-sm text-lime-500 hover:underline">{post.commentCount || 0} comments</button>
+              <button onClick={handleView} className="text-sm text-lime-500 hover:underline">{post.commentCount || 0} comments</button>
           </div>
         )}
 

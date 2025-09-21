@@ -1,3 +1,5 @@
+
+
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { Comment, User } from '../types';
 import Icon from './Icon';
@@ -12,17 +14,17 @@ interface CommentCardProps {
   onAuthorClick: (username: string) => void;
   onReply: (comment: Comment) => void;
   onReact: (commentId: string, emoji: string) => void;
-  // FIX: Add optional onEdit and onDelete props
+  // @FIXML-FIX-212: Add optional onEdit and onDelete props
   onEdit?: (commentId: string, newText: string) => void;
   onDelete?: (commentId: string) => void;
-  // FIX: Add optional isReply prop
+  // @FIXML-FIX-224: Add optional isReply prop
   isReply?: boolean;
 }
 
 const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '😡', '🔥', '😮'];
 
 const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlaying, onPlayPause, onAuthorClick, onReply, onReact, onEdit, onDelete }) => {
-  // FIX: If the comment object or its author is null, return nothing.
+  // Final Fix: If the comment object or its author is null, return nothing.
   // This prevents any attempt to access properties of a null object, stopping the crash.
   if (!comment || !comment.author) {
     return null;
@@ -121,7 +123,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
         case 'text':
             return <p className="text-slate-200 mt-1 whitespace-pre-wrap"><TaggedContent text={comment.text || ''} onTagClick={onAuthorClick} /></p>;
         case 'image':
-            return <img src={comment.imageUrl} alt="Comment" className="mt-2 rounded-lg max-w-full h-auto max-h-60" />;
+            return <img src={comment.imageUrl} alt="Comment image" className="mt-2 rounded-lg max-w-full h-auto max-h-60" />;
         case 'audio':
         default:
             return (

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Campaign, Lead } from '../types';
 import { firebaseService } from '../services/firebaseService';
@@ -502,7 +504,7 @@ const AdsScreen: React.FC<AdsScreenProps> = ({ currentUser, onSetTtsMessage, las
                 />
             )}
         </div>
-    )
+    );
 };
 
 export default AdsScreen;

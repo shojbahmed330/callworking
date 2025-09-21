@@ -1,5 +1,6 @@
 
 
+
 export interface User {
   id: string;
   name: string; // Full Name
@@ -245,9 +246,9 @@ export interface Campaign {
   };
 }
 
-export interface RoomMessage {
+export interface LiveRoomMessage {
   id: string;
-  sender: Author;
+  sender: Pick<User, 'id' | 'name' | 'avatarUrl' | 'username'>;
   text: string;
   createdAt: string; // ISO string
 }
@@ -255,18 +256,12 @@ export interface RoomMessage {
 export interface LiveAudioRoom {
   id: string;
   host: User;
-  coHostIds?: string[]; // Array of user IDs
   topic: string;
   speakers: User[];
   listeners: User[];
   raisedHands: string[]; // Array of user IDs
-  mutedByHostIds?: string[]; // Array of user IDs muted by host/co-host
   createdAt: string;
   status: 'live' | 'ended';
-  privacy?: 'public' | 'private' | 'friends-only';
-  password?: string;
-  messages?: RoomMessage[];
-  theme?: string; // Key for ROOM_THEMES
 }
 
 export interface VideoParticipantState extends User {

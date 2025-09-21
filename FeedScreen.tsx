@@ -1,14 +1,15 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from './types';
-import { PostCard } from './components/PostCard';
-import CreatePostWidget from './components/CreatePostWidget';
-import SkeletonPostCard from './components/SkeletonPostCard';
-import { geminiService } from './services/geminiService';
-import RewardedAdWidget from './components/RewardedAdWidget';
-import { getTtsPrompt } from './constants';
-import StoriesTray from './components/StoriesTray';
-import { firebaseService } from './services/firebaseService';
-import { useSettings } from './contexts/SettingsContext';
+import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
+import { PostCard } from './PostCard';
+import CreatePostWidget from './CreatePostWidget';
+import SkeletonPostCard from './SkeletonPostCard';
+import { geminiService } from '../services/geminiService';
+import RewardedAdWidget from './RewardedAdWidget';
+import { getTtsPrompt } from '../constants';
+import StoriesTray from './StoriesTray';
+import { firebaseService } from '../services/firebaseService';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface FeedScreenProps {
   isLoading: boolean;
@@ -365,7 +366,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
+      <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
           <SkeletonPostCard />
           <SkeletonPostCard />
           <SkeletonPostCard />
@@ -374,7 +375,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
   }
 
   return (
-    <div ref={feedContainerRef} className="w-full max-w-lg md:max-w-2xl mx-auto flex flex-col items-center gap-6">
+    <div ref={feedContainerRef} className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
         <StoriesTray 
             currentUser={currentUser}
             storiesByAuthor={storiesByAuthor}

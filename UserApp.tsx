@@ -18,7 +18,6 @@ import Sidebar from './components/Sidebar';
 import Icon from './components/Icon';
 import AdModal from './components/AdModal';
 import { geminiService } from './services/geminiService';
-// FIX: Corrected import path for firebaseService.
 import { firebaseService } from './services/firebaseService';
 import { IMAGE_GENERATION_COST, REWARD_AD_COIN_VALUE, getTtsPrompt } from './constants';
 import ConversationsScreen from './components/ConversationsScreen';
@@ -386,9 +385,7 @@ const UserApp: React.FC = () => {
     const unsubscribeFriendRequests = firebaseService.listenToFriendRequests(user.id, setFriendRequests);
     unsubscribes.push(unsubscribeFriendRequests);
 
-    // FIX: The type of `setNotifications` (a React state setter) doesn't match the expected callback type.
-    // Wrap it in an arrow function to satisfy the type checker.
-    const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, (newNotifications) => setNotifications(newNotifications));
+    const unsubscribeNotifications = firebaseService.listenToNotifications(user.id, setNotifications);
     unsubscribes.push(unsubscribeNotifications);
     
     const unsubscribeCalls = firebaseService.listenForIncomingCalls(user.id, (call) => {

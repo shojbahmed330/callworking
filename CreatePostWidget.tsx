@@ -1,6 +1,6 @@
 import React from 'react';
-import type { User } from './types';
-import Icon from './components/Icon';
+import type { User } from '../types';
+import Icon from './Icon';
 
 interface CreatePostWidgetProps {
   user: User;

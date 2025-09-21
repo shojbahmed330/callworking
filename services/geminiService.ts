@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author, Call } from '../types';
 import { VOICE_EMOJI_MAP, MOCK_MUSIC_LIBRARY, DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS } from '../constants';
-// FIX: Corrected import path for firebaseService.
 import { firebaseService } from './firebaseService';
 
 
@@ -410,7 +409,7 @@ export const geminiService = {
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
     listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),
     listenToVideoRoom: (roomId: string, callback: (room: LiveVideoRoom | null) => void) => firebaseService.listenToRoom(roomId, 'video', callback),
-    createLiveAudioRoom: (host: User, topic: string, privacy: 'public' | 'private' | 'friends-only', password?: string) => firebaseService.createLiveAudioRoom(host, topic, privacy, password),
+    createLiveAudioRoom: (host: User, topic: string) => firebaseService.createLiveAudioRoom(host, topic),
     createLiveVideoRoom: (host: User, topic: string) => firebaseService.createLiveVideoRoom(host, topic),
     joinLiveAudioRoom: (userId: string, roomId: string) => firebaseService.joinLiveAudioRoom(userId, roomId),
     joinLiveVideoRoom: (userId: string, roomId: string) => firebaseService.joinLiveVideoRoom(userId, roomId),
@@ -422,12 +421,6 @@ export const geminiService = {
     raiseHandInAudioRoom: (userId: string, roomId: string) => firebaseService.raiseHandInAudioRoom(userId, roomId),
     inviteToSpeakInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.inviteToSpeakInAudioRoom(hostId, userId, roomId),
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
-    sendAudioRoomMessage: (roomId: string, sender: User, text: string) => firebaseService.sendAudioRoomMessage(roomId, sender, text),
-    kickUserFromRoom: (roomId: string, managerId: string, targetUserId: string) => firebaseService.kickUserFromRoom(roomId, managerId, targetUserId),
-    promoteToCoHost: (roomId: string, hostId: string, targetUserId: string) => firebaseService.promoteToCoHost(roomId, hostId, targetUserId),
-    demoteFromCoHost: (roomId: string, hostId: string, targetUserId: string) => firebaseService.demoteFromCoHost(roomId, hostId, targetUserId),
-    setRemoteMuteStatus: (roomId: string, managerId: string, targetUserId: string, shouldMute: boolean) => firebaseService.setRemoteMuteStatus(roomId, managerId, targetUserId, shouldMute),
-    updateRoomTheme: (roomId: string, hostId: string, theme: string) => firebaseService.updateRoomTheme(roomId, hostId, theme),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),

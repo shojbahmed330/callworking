@@ -113,15 +113,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Effect 1: Listen for the user profile document and set the main user state
   useEffect(() => {
-    // FIX: Add a guard to ensure the username is a valid string before fetching.
-    // This prevents a Firestore query error if the component is rendered with an undefined username.
-    if (typeof username !== 'string' || !username) {
-        onSetTtsMessage('Cannot load profile. Invalid user specified.');
-        setIsLoading(false);
-        setProfileUser(null);
-        return; // Do not proceed with fetching
-    }
-    
     setIsLoading(true); // Start loading when username changes
     isInitialLoadRef.current = true; // Reset initial load flag
 
@@ -242,19 +233,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       event.target.value = ''; 
   };
   
+// FIX: The `onSave` prop for `ImageCropper` expects a function with one argument `(base64: string)`.
+// The original `handleSaveCrop` expected a `caption` and `captionStyle`, causing a type mismatch.
+// This has been updated to only accept `base64Url` and pass undefined for the optional caption.
   const handleSaveCrop = async (base64Url: string) => {
       if (!profileUser || !cropperState.type) return;
 
       setCropperState(prev => ({ ...prev, isUploading: true }));
 
       try {
+          const caption = undefined;
+          const captionStyle = undefined;
+          
           let result;
           if (cropperState.type === 'avatar') {
               onSetTtsMessage(getTtsPrompt('profile_picture_update_success', language));
-              result = await geminiService.updateProfilePicture(profileUser.id, base64Url, undefined, undefined);
+              result = await geminiService.updateProfilePicture(profileUser.id, base64Url, caption, captionStyle);
           } else {
               onSetTtsMessage(getTtsPrompt('cover_photo_update_success', language));
-              result = await geminiService.updateCoverPhoto(profileUser.id, base64Url, undefined, undefined);
+              result = await geminiService.updateCoverPhoto(profileUser.id, base64Url, caption, captionStyle);
           }
 
           if (result) {
