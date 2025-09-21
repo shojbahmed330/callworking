@@ -709,19 +709,33 @@ export const firebaseService = {
             const response = await fetch(tokenUrl);
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'The server returned an error.' }));
+                let errorData: { error?: string } = {};
+                let errorMessage = 'Failed to fetch token from server.';
+                try {
+                    errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                    const errorText = await response.text();
+                    console.error("Non-JSON error response from token server:", response.status, errorText);
+                    errorMessage = `The token server returned an unreadable error (status: ${response.status}). This often means the AGORA_APP_CERTIFICATE environment variable is not set correctly on your hosting platform.`;
+                }
+                    
                 console.error("Token server error:", response.status, errorData);
-                throw new Error(errorData.error || 'Failed to fetch token from server');
+                throw new Error(errorMessage);
             }
+
             const data = await response.json();
             if (!data.rtcToken) {
-                console.error("Server response did not include rtcToken:", data);
-                throw new Error("Invalid token response from server.");
+                console.error("Server response was OK but did not include an rtcToken:", data);
+                throw new Error("Invalid token data received from the server.");
             }
             return data.rtcToken;
         } catch (error) {
             console.error("Error fetching Agora token:", error);
-            throw new Error('Failed to get Agora token.');
+            if (error instanceof Error) {
+                throw new Error(`Failed to get Agora token: ${error.message}`);
+            }
+            throw new Error('Failed to get Agora token due to an unknown error.');
         }
     },
     

@@ -34,7 +34,8 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // The app uses string Firebase UIDs, so buildTokenWithAccount is correct.
-    const token = RtcTokenBuilder.buildTokenWithAccount(
+    // FIX: Corrected method name as suggested by the error message.
+    const token = RtcTokenBuilder.buildTokenWithUserAccount(
       APP_ID,
       APP_CERTIFICATE,
       String(channelName),
