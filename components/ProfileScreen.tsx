@@ -113,6 +113,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Effect 1: Listen for the user profile document and set the main user state
   useEffect(() => {
+    // FIX: Add a guard to ensure the username is a valid string before fetching.
+    // This prevents a Firestore query error if the component is rendered with an undefined username.
+    if (typeof username !== 'string' || !username) {
+        onSetTtsMessage('Cannot load profile. Invalid user specified.');
+        setIsLoading(false);
+        setProfileUser(null);
+        return; // Do not proceed with fetching
+    }
+    
     setIsLoading(true); // Start loading when username changes
     isInitialLoadRef.current = true; // Reset initial load flag
 

@@ -62,12 +62,13 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
   const commentThreads = useMemo(() => {
     if (!post.comments) return [];
     
-    const comments = [...post.comments].filter(Boolean).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    // FIX: Ensure that we filter out any potentially null/undefined items in the comments array
+    const comments = post.comments.filter((c): c is Comment => !!c).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const commentsById = new Map<string, Comment & { replies: Comment[] }>();
     comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
 
-    const topLevelComments: (Comment & { replies: Comment[] }[]) = [];
+    const topLevelComments: (Comment & { replies: Comment[] })[] = [];
     
     comments.forEach(c => {
         const commentWithReplies = commentsById.get(c.id);
