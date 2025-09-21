@@ -714,7 +714,7 @@ export const firebaseService = {
                 throw new Error(`Failed to fetch token via proxy: ${response.statusText}`);
             }
             const data = await response.json();
-            return data.token;
+            return data.rtcToken;
         } catch (error) {
             console.error("Error fetching Agora token:", error);
             return null;
