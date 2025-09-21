@@ -105,7 +105,6 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
 
     const timerIntervalRef = useRef<number | null>(null);
-    const callStatusRef = useRef<Call['status'] | null>(null);
     const { language } = useSettings();
 
     // Timer effect
@@ -130,38 +129,41 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
     // Agora Lifecycle
     useEffect(() => {
+        let isMounted = true;
         const initializeAndJoin = async () => {
-            if (!AGORA_APP_ID) {
-                onSetTtsMessage("Agora App ID is not configured. Real-time video will not work.");
-                console.error("Agora App ID is not configured in constants.ts");
-                throw new Error("Agora App ID not configured");
-            }
-            
-            const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-            agoraClient.current = client;
-
-            const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
-                await client.subscribe(user, mediaType);
-                if (mediaType === 'audio') user.audioTrack?.play();
-                setRemoteUsers(Array.from(client.remoteUsers));
-            };
-    
-            const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
-                setRemoteUsers(Array.from(client.remoteUsers));
-            };
-    
-            const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
-                setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
-            };
-            
-            const handleVolumeIndicator = (volumes: any[]) => {
-                if (volumes.length === 0) { setActiveSpeakerId(null); return; }
-                const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
-                setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
-            };
-
             try {
+                if (!AGORA_APP_ID) {
+                    onSetTtsMessage("Agora App ID is not configured. Real-time video will not work.");
+                    console.error("Agora App ID is not configured in constants.ts");
+                    throw new Error("Agora App ID not configured");
+                }
+                
+                const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+                agoraClient.current = client;
+    
+                const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+                    await client.subscribe(user, mediaType);
+                    if (mediaType === 'audio') user.audioTrack?.play();
+                    if(isMounted) setRemoteUsers(Array.from(client.remoteUsers));
+                };
+        
+                const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
+                    if(isMounted) setRemoteUsers(Array.from(client.remoteUsers));
+                };
+        
+                const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
+                    if(isMounted) setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
+                };
+                
+                const handleVolumeIndicator = (volumes: any[]) => {
+                    if(!isMounted) return;
+                    if (volumes.length === 0) { setActiveSpeakerId(null); return; }
+                    const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
+                    setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
+                };
+
                 await geminiService.joinLiveVideoRoom(currentUser.id, roomId);
+                if (!isMounted) return;
                 
                 client.on('user-published', handleUserPublished);
                 client.on('user-unpublished', handleUserUnpublished);
@@ -170,40 +172,51 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.on('volume-indicator', handleVolumeIndicator);
 
                 const token = await geminiService.getAgoraToken(roomId, currentUser.id);
-                if (!token) throw new Error("Failed to retrieve Agora token.");
+                if (!isMounted || !token) throw new Error("Failed to retrieve Agora token.");
                 
                 await client.join(AGORA_APP_ID, roomId, token, currentUser.id);
+                if (!isMounted) return;
 
                 try {
                     const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                    if (!isMounted) {
+                        audioTrack.close();
+                        videoTrack.close();
+                        return;
+                    }
                     localAudioTrack.current = audioTrack;
                     localVideoTrack.current = videoTrack;
                     setLocalVideoTrackState(videoTrack);
                     await client.publish([audioTrack, videoTrack]);
                 } catch (mediaError) {
                      console.warn("Could not get local media tracks:", mediaError);
-                     onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
-                     setIsMicAvailable(false);
-                     setIsCamAvailable(false);
-                     setIsMuted(true);
-                     setIsCameraOff(true);
+                     if(isMounted) {
+                        onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
+                        setIsMicAvailable(false);
+                        setIsCamAvailable(false);
+                        setIsMuted(true);
+                        setIsCameraOff(true);
+                     }
                 }
             } catch (error: any) {
                 console.error("Agora failed to join or publish:", error);
-                if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
-                    onSetTtsMessage("Could not find a microphone or camera. Please check your devices and permissions.");
-                } else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') {
-                    onSetTtsMessage("Microphone/camera access was denied. Please allow access in your browser settings.");
-                } else {
-                    onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
+                if(isMounted) {
+                    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
+                        onSetTtsMessage("Could not find a microphone or camera. Please check your devices and permissions.");
+                    } else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') {
+                        onSetTtsMessage("Microphone/camera access was denied. Please allow access in your browser settings.");
+                    } else {
+                        onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
+                    }
+                    onGoBack();
                 }
-                onGoBack();
             }
         };
 
         initializeAndJoin();
 
         return () => {
+            isMounted = false;
             localAudioTrack.current?.stop();
             localAudioTrack.current?.close();
             localVideoTrack.current?.stop();
@@ -211,7 +224,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             agoraClient.current?.leave();
             firebaseService.leaveLiveVideoRoom(currentUser.id, roomId);
         };
-    }, [roomId, currentUser.id, onGoBack, onSetTtsMessage, language]);
+    }, [roomId, currentUser.id, onGoBack, onSetTtsMessage]);
     
     // Firestore real-time listener for Room Metadata
     useEffect(() => {
@@ -219,7 +232,6 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         const unsubscribe = geminiService.listenToVideoRoom(roomId, (roomDetails) => {
             if (roomDetails) {
                 setRoom(roomDetails);
-                 callStatusRef.current = roomDetails.status;
                  if(roomDetails.status === 'ended') {
                      setTimeout(() => onGoBack(), 2000);
                  }

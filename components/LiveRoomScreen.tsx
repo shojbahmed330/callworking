@@ -116,6 +116,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     useEffect(() => {
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
+        let isMounted = true;
 
         const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
             await client.subscribe(user, mediaType);
@@ -123,6 +124,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         };
 
         const handleVolumeIndicator = (volumes: any[]) => {
+            if (!isMounted) return;
             if (volumes.length === 0) { setActiveSpeakerId(null); return; };
             const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
             setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
@@ -136,21 +138,22 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 }
                 
                 const initialRoom = await geminiService.getAudioRoomDetails(roomId);
-                if (!initialRoom) {
-                    onSetTtsMessageRef.current("Room not found.");
-                    throw new Error("Room not found");
+                if (!isMounted || !initialRoom) {
+                    if (isMounted) onSetTtsMessageRef.current("Room not found.");
+                    throw new Error("Room not found or component unmounted");
                 }
 
                 if (initialRoom.kickedUserIds?.includes(currentUser.id)) {
-                    onSetTtsMessageRef.current("You have been removed from this room.");
+                    if(isMounted) onSetTtsMessageRef.current("You have been removed from this room.");
                     throw new Error("User kicked");
                 }
                 if (initialRoom.privacy === 'private' && initialRoom.host.id !== currentUser.id && !initialRoom.invitedUserIds?.includes(currentUser.id)) {
-                    onSetTtsMessageRef.current("This is a private room. You need an invitation to join.");
+                    if(isMounted) onSetTtsMessageRef.current("This is a private room. You need an invitation to join.");
                     throw new Error("Private room");
                 }
 
                 await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
+                if (!isMounted) return;
 
                 client.on('user-published', handleUserPublished);
                 client.enableAudioVolumeIndicator();
@@ -159,22 +162,25 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 const uid = parseInt(currentUser.id, 36) % 10000000;
                 
                 const token = await geminiService.getAgoraToken(roomId, uid);
-                if (!token) {
-                    onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
-                    throw new Error("Token fetch failed");
+                if (!isMounted || !token) {
+                    if (isMounted) onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
+                    throw new Error("Token fetch failed or component unmounted");
                 }
                 
                 await client.join(AGORA_APP_ID, roomId, token, uid);
 
             } catch (error) {
                 console.error("Failed to initialize Live Room:", error);
-                onGoBackRef.current();
+                if (isMounted) {
+                    onGoBackRef.current();
+                }
             }
         };
 
         initialize();
 
         return () => {
+            isMounted = false;
             client.off('user-published', handleUserPublished);
             client.off('volume-indicator', handleVolumeIndicator);
             if (localAudioTrack.current) {

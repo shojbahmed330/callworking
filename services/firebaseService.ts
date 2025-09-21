@@ -1392,6 +1392,9 @@ export const firebaseService = {
                 } as LiveRoomMessage;
             });
             callback(messages);
+        }, (error) => {
+            console.error(`Error listening to messages for room ${roomId}:`, error);
+            callback([]);
         });
     },
     async sendRoomMessage(roomId: string, sender: User, text: string): Promise<void> {
@@ -1420,6 +1423,9 @@ export const firebaseService = {
                 } as LiveAudioRoom;
             });
             callback(rooms);
+        }, (error) => {
+            console.error("Error listening to live audio rooms:", error);
+            callback([]);
         });
     },
     listenToLiveVideoRooms(callback: (rooms: LiveVideoRoom[]) => void) {
@@ -1434,6 +1440,9 @@ export const firebaseService = {
                 } as LiveVideoRoom;
             });
             callback(rooms);
+        }, (error) => {
+            console.error("Error listening to live video rooms:", error);
+            callback([]);
         });
     },
     listenToAudioRoom(roomId: string, callback: (room: LiveAudioRoom | null) => void) {
@@ -1453,6 +1462,9 @@ export const firebaseService = {
             } else {
                 callback(null);
             }
+        }, (error) => {
+            console.error(`Error listening to ${type} room ${roomId}:`, error);
+            callback(null);
         });
     },
     async createLiveAudioRoom(host: User, topic: string, privacy: 'public' | 'private'): Promise<LiveAudioRoom> {
@@ -1611,21 +1623,21 @@ export const firebaseService = {
             invitedUserIds: arrayUnion(friendId)
         });
     },
-    async promoteToModeratorInAudioRoom(hostId: string, targetUserId: string, roomId: string): Promise<void> {
+    async promoteToModeratorInAudioRoom(hostId, targetUserId, roomId): Promise<void> {
         const roomRef = db.collection('liveAudioRooms').doc(roomId);
         const roomDoc = await roomRef.get();
         if (roomDoc.exists && roomDoc.data().host.id === hostId) {
             await roomRef.update({ moderatorIds: arrayUnion(targetUserId) });
         }
     },
-    async demoteFromModeratorInAudioRoom(hostId: string, targetUserId: string, roomId: string): Promise<void> {
+    async demoteFromModeratorInAudioRoom(hostId, targetUserId, roomId): Promise<void> {
         const roomRef = db.collection('liveAudioRooms').doc(roomId);
         const roomDoc = await roomRef.get();
         if (roomDoc.exists && roomDoc.data().host.id === hostId) {
             await roomRef.update({ moderatorIds: arrayRemove(targetUserId) });
         }
     },
-    async removeUserFromAudioRoom(adminId: string, targetUserId: string, roomId: string): Promise<void> {
+    async removeUserFromAudioRoom(adminId, targetUserId, roomId): Promise<void> {
         const roomRef = db.collection('liveAudioRooms').doc(roomId);
         const roomDoc = await roomRef.get();
         if (roomDoc.exists) {
@@ -1666,6 +1678,8 @@ export const firebaseService = {
                     createdAt: data.createdAt.toDate().toISOString(),
                 } as LiveRoomEvent);
             }
+        }, (error) => {
+            console.error(`Error listening to events for room ${roomId}:`, error);
         });
     },
     async lowerHandInAudioRoom(userId: string, roomId: string): Promise<void> {
