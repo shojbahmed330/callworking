@@ -20,6 +20,16 @@ interface ChatWidgetProps {
 
 enum RecordingState { IDLE, RECORDING, PREVIEW }
 const EMOJI_REACTIONS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+
+const isJumboEmoji = (text: string | undefined): boolean => {
+    if (!text) return false;
+    const trimmedText = text.trim();
+    const noEmojiText = trimmedText.replace(EMOJI_REGEX, '');
+    if (noEmojiText.trim().length > 0) return false; // Contains non-emoji text
+    const emojiCount = (trimmedText.match(EMOJI_REGEX) || []).length;
+    return emojiCount > 0 && emojiCount <= 2;
+}
 
 const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (message: Message) => void; onReact: (messageId: string, emoji: string) => void; onUnsend: (messageId: string) => void; }> = ({ message, isMe, onReply, onReact, onUnsend }) => {
     const [isHovered, setIsHovered] = useState(false);
@@ -39,6 +49,8 @@ const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (messa
 
 
     const renderContent = () => {
+        const isJumbo = isJumboEmoji(message.text);
+        
         if (message.isDeleted) {
             return <p className={`italic text-sm ${isMe ? 'text-slate-400' : 'text-slate-500'}`}>Message unsent</p>;
         }
@@ -51,7 +63,7 @@ const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (messa
                 return <audio src={message.audioUrl} controls className="w-48" />;
             case 'text':
             default:
-                return <p className="text-sm break-words">{message.text}</p>;
+                return <p className={`text-sm break-words ${isJumbo ? 'jumbo-emoji animate-jumbo' : ''}`}>{message.text}</p>;
         }
     };
     
@@ -79,7 +91,7 @@ const MessageBubble: React.FC<{ message: Message; isMe: boolean; onReply: (messa
                     )}
                  </div>
 
-                 <div className={`relative px-3 py-2 rounded-2xl ${isMe ? 'bg-rose-600 text-white' : 'bg-slate-600 text-slate-100'}`}>
+                 <div className={`relative px-3 py-2 rounded-2xl ${isMe ? 'bg-rose-600 text-white' : 'bg-slate-600 text-slate-100'} ${isJumboEmoji(message.text) ? '!bg-transparent' : ''}`}>
                     {renderContent()}
                     {hasReactions && (
                         <div className="absolute -bottom-2.5 right-1 bg-slate-700 rounded-full px-1.5 text-xs flex items-center gap-1 border border-slate-900">
@@ -97,6 +109,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   
   const [recordingState, setRecordingState] = useState<RecordingState>(RecordingState.IDLE);
   const [audioPreview, setAudioPreview] = useState<{ url: string, blob: Blob, duration: number } | null>(null);
@@ -130,11 +143,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newMessage.trim() && !audioPreview) return;
+    const trimmedMessage = newMessage.trim();
+    if (!trimmedMessage && !audioPreview) return;
+    
+    if (trimmedMessage === '❤️') {
+        setShowHeartAnimation(true);
+        setTimeout(() => setShowHeartAnimation(false), 3000);
+    }
     
     const replyToInfo = replyingTo ? geminiService.createReplySnippet(replyingTo) : undefined;
     
-    let messageContent: any = { type: 'text', text: newMessage.trim(), replyTo: replyToInfo };
+    let messageContent: any = { type: 'text', text: trimmedMessage, replyTo: replyToInfo };
 
     if (audioPreview) {
         messageContent = { 
@@ -244,6 +263,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
             }
         }
     };
+    
+  const HeartAnimation = () => (
+    <div className="heart-animation-container">
+        {Array.from({ length: 10 }).map((_, i) => (
+            <div
+                key={i}
+                className="heart"
+                style={{
+                    left: `${Math.random() * 80 + 10}%`,
+                    animationDelay: `${Math.random() * 1.5}s`,
+                    fontSize: `${Math.random() * 1.5 + 1}rem`,
+                }}
+            >
+                ❤️
+            </div>
+        ))}
+    </div>
+  );
 
   if (isMinimized) {
     return (
@@ -262,8 +299,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   }
 
   return (
-    <div className="w-72 h-[450px] bg-[#242526] rounded-t-lg flex flex-col shadow-2xl border border-b-0 border-slate-700 font-sans">
-      <header className="flex-shrink-0 flex items-center justify-between p-2 bg-[#242526] rounded-t-lg border-b border-slate-700">
+    <div className="fixed md:relative bottom-0 left-0 right-0 h-full md:w-72 md:h-[450px] bg-[#242526] md:rounded-t-lg flex flex-col shadow-2xl border border-b-0 border-slate-700 font-sans">
+      <header className="flex-shrink-0 flex items-center justify-between p-2 bg-[#242526] md:rounded-t-lg border-b border-slate-700">
         <button onClick={() => onHeaderClick(peerUser.id)} className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-700/50">
           <div className="relative">
             <img src={peerUser.avatarUrl} alt={peerUser.name} className="w-8 h-8 rounded-full" />
@@ -274,7 +311,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
         <div className="flex items-center text-rose-400">
           <button onClick={() => handleInitiateCall('audio')} className="p-2 rounded-full hover:bg-slate-700/50"><Icon name="phone" className="w-5 h-5"/></button>
           <button onClick={() => handleInitiateCall('video')} className="p-2 rounded-full hover:bg-slate-700/50"><Icon name="video-camera" className="w-5 h-5"/></button>
-          <button onClick={(e) => { e.stopPropagation(); onMinimize(peerUser.id); }} className="p-2 rounded-full hover:bg-slate-700/50">
+          <button onClick={(e) => { e.stopPropagation(); onMinimize(peerUser.id); }} className="p-2 rounded-full hover:bg-slate-700/50 hidden md:inline-block">
              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
           </button>
           <button onClick={(e) => { e.stopPropagation(); onClose(peerUser.id); }} className="p-2 rounded-full hover:bg-slate-700/50">
@@ -282,7 +319,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
           </button>
         </div>
       </header>
-      <main className="flex-grow overflow-y-auto p-3 space-y-4 flex flex-col">
+      <main className="relative flex-grow overflow-y-auto p-3 space-y-4 flex flex-col">
+        {showHeartAnimation && <HeartAnimation />}
         {messages.map((msg) => (
             <MessageBubble
                 key={msg.id}
