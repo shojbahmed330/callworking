@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { RtcTokenBuilder, RtcRole } from 'agora-token';
+import { AGORA_APP_ID } from '../constants';
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers for all responses
@@ -11,12 +12,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
   
-  // FIX: AGORA_APP_ID should be retrieved from environment variables for security and proper deployment of a serverless function.
-  const APP_ID = process.env.AGORA_APP_ID;
+  const APP_ID = AGORA_APP_ID;
   const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
   if (!APP_ID || !APP_CERTIFICATE) {
-    const errorMessage = "CRITICAL SERVER ERROR: The AGORA_APP_ID or AGORA_APP_CERTIFICATE is not set in the Vercel environment variables. Please add them to your project settings and redeploy.";
+    const errorMessage = "CRITICAL SERVER ERROR: The AGORA_APP_ID is missing from constants.ts or the AGORA_APP_CERTIFICATE is not set in the Vercel environment variables. Please add them and redeploy.";
     console.error(errorMessage);
     return res.status(500).json({ error: errorMessage });
   }
@@ -34,7 +34,9 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
   try {
-    // FIX: Added the missing 7th argument `currentTimestamp` for the token creation timestamp.
+    // FIX: The RtcTokenBuilder.buildTokenWithUserAccount function expects 7 arguments.
+    // The token expiration and privilege expiration were likely intended to be the same.
+    // Added privilegeExpiredTs for both to resolve the error.
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       APP_ID,
       APP_CERTIFICATE,
@@ -42,12 +44,15 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       userAccount,
       role,
       privilegeExpiredTs,
-      currentTimestamp
+      privilegeExpiredTs
     );
 
     return res.status(200).json({ rtcToken: token });
   } catch (error) {
     console.error('Error generating Agora token:', error);
-    return res.status(500).json({ error: 'Failed to generate token' });
+    if (error instanceof Error) {
+        return res.status(500).json({ error: `Failed to generate token: ${error.message}` });
+    }
+    return res.status(500).json({ error: 'Failed to generate token due to an unknown error.' });
   }
 }
