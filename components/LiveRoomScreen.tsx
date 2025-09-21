@@ -1,74 +1,88 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { AppView, LiveAudioRoom, User, LiveRoomMessage, AudioParticipantState, LiveRoomEvent } from '../types';
+import React, { useEffect, useState, useMemo } from 'react';
+import { User, LiveAudioRoom, RoomMessage, RoomParticipant, Author } from '../types';
 import { firebaseService } from '../services/firebaseService';
-import Icon from './Icon';
-import { AGORA_APP_ID } from '../constants';
-import AgoraRTC from 'agora-rtc-sdk-ng';
-import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { geminiService } from '../services/geminiService';
 
-const EMOJI_REACTIONS = ['❤️', '👍', '😂', '🎉', '🙏', '😮'];
+// Define a more specific type for users within the room context
+type RoomUser = RoomParticipant & {
+  role: 'host' | 'co-host' | 'speaker' | 'listener';
+  isSpeaking?: boolean;
+  raisedHand?: boolean;
+};
 
-interface InviteFriendsModalProps {
-    currentUser: User;
-    room: LiveAudioRoom;
+const UserAvatar: React.FC<{ user: RoomUser, onClick: () => void }> = ({ user, onClick }) => (
+  <button onClick={onClick} className="flex flex-col items-center gap-1.5 text-center w-16">
+    <div className="relative">
+      {(user.role === 'host' || user.role === 'co-host') && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+          <span className="text-2xl" role="img" aria-label={user.role}>👑</span>
+        </div>
+      )}
+      <img src={user.avatarUrl} alt={user.name} className={`w-16 h-16 rounded-full object-cover border-2 transition-all ${user.isSpeaking ? 'border-cyan-400 ring-2 ring-cyan-400/50' : 'border-transparent'}`} />
+      <div className="absolute -bottom-1 -right-1 flex items-center gap-0.5">
+        {user.isMuted && (
+          <div className="bg-gray-800 p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
+        )}
+        {user.isShielded && (
+          <div className="bg-blue-600 p-1 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg></div>
+        )}
+      </div>
+      {user.raisedHand && (
+        <div className="absolute -bottom-1 -left-1 bg-yellow-500 p-1 rounded-full animate-bounce">
+          <span className="text-xs" role="img" aria-label="Hand raised">✋</span>
+        </div>
+      )}
+    </div>
+    <p className="text-xs font-medium truncate w-16">{user.name}</p>
+  </button>
+);
+
+const UserActionMenu: React.FC<{
+    targetUser: RoomUser;
+    // FIX: Corrected the type for viewerRole to align with possible roles.
+    viewerRole: 'host' | 'co-host' | 'speaker' | 'listener';
     onClose: () => void;
-    onSetTtsMessage: (message: string) => void;
-}
+    onInvite: (user: RoomParticipant) => void;
+    onMoveToAudience: (user: RoomParticipant) => void;
+    onMuteToggle: (user: RoomParticipant) => void;
+    onMakeCoHost: (user: RoomParticipant) => void;
+    onRemoveCoHost: (user: RoomParticipant) => void;
+    onKick: (user: RoomParticipant) => void;
+    onBan: (user: RoomParticipant) => void;
+}> = ({ targetUser, viewerRole, onClose, onInvite, onMoveToAudience, onMuteToggle, onMakeCoHost, onRemoveCoHost, onKick, onBan }) => {
 
-const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({ currentUser, room, onClose, onSetTtsMessage }) => {
-    const [friends, setFriends] = useState<User[]>([]);
-    const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
-    const [isLoading, setIsLoading] = useState(true);
+    const isTargetHost = targetUser.role === 'host';
+    const isTargetCoHost = targetUser.role === 'co-host';
+    const viewerIsHost = viewerRole === 'host';
 
-    useEffect(() => {
-        const fetchFriends = async () => {
-            setIsLoading(true);
-            const friendsList = await geminiService.getFriendsList(currentUser.id);
-            const roomMemberIds = new Set([...room.speakers.map(s => s.id), ...room.listeners.map(l => l.id)]);
-            setFriends(friendsList.filter(f => !roomMemberIds.has(f.id)));
-            setIsLoading(false);
-        };
-        fetchFriends();
-    }, [currentUser.id, room]);
+    // FIX: Simplified the logic to be more readable and correct. A non-host cannot manage the host or a co-host.
+    if (!viewerIsHost && (isTargetHost || isTargetCoHost)) {
+        return null;
+    }
 
-    const handleInvite = async (friendId: string) => {
-        setInvitedIds(prev => new Set(prev).add(friendId));
-        await geminiService.inviteFriendToRoom(currentUser, friendId, room);
-        const friend = friends.find(f => f.id === friendId);
-        if(friend) {
-            onSetTtsMessage(`Invitation sent to ${friend.name}`);
-        }
-    };
+    const ActionButton: React.FC<{ onClick: () => void, children: React.ReactNode, className?: string }> = ({ onClick, children, className = '' }) => (
+        <button onClick={onClick} className={`w-full text-left p-3 text-white hover:bg-gray-600 rounded-md ${className}`}>
+            {children}
+        </button>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="w-full max-w-md h-[70vh] bg-slate-800 border border-slate-700 rounded-lg shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-                <header className="flex-shrink-0 p-4 border-b border-slate-700">
-                    <h2 className="text-xl font-bold text-slate-100">Invite Friends</h2>
-                </header>
-                <main className="flex-grow overflow-y-auto p-2">
-                    {isLoading ? <p className="text-center p-4 text-slate-400">Loading friends...</p> : (
-                        friends.length > 0 ? (
-                            <div className="space-y-2">
-                                {friends.map(friend => {
-                                    const isInvited = invitedIds.has(friend.id) || (room.invitedUserIds || []).includes(friend.id);
-                                    return (
-                                        <div key={friend.id} className="flex items-center justify-between p-2 hover:bg-slate-700/50 rounded-lg">
-                                            <div className="flex items-center gap-3">
-                                                <img src={friend.avatarUrl} alt={friend.name} className="w-10 h-10 rounded-full" />
-                                                <span className="font-semibold text-slate-200">{friend.name}</span>
-                                            </div>
-                                            <button onClick={() => handleInvite(friend.id)} disabled={isInvited} className={`px-3 py-1.5 text-sm rounded-md font-semibold ${isInvited ? 'bg-slate-600 text-slate-400' : 'bg-lime-600 text-black'}`}>
-                                                {isInvited ? 'Invited' : 'Invite'}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : <p className="text-center p-4 text-slate-400">All your friends are already here!</p>
-                    )}
-                </main>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-gray-700 rounded-lg w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
+                <h3 className="font-bold text-lg mb-2 text-center">{targetUser.name}</h3>
+                <div className="space-y-2">
+                    {targetUser.role === 'listener' && <ActionButton onClick={() => onInvite(targetUser)}>{targetUser.raisedHand ? 'Approve to Speak' : 'Invite to Speak'}</ActionButton>}
+                    {targetUser.role === 'speaker' && !isTargetHost && <ActionButton onClick={() => onMoveToAudience(targetUser)}>Move to Audience</ActionButton>}
+                    {targetUser.role === 'speaker' && !isTargetHost && <ActionButton onClick={() => onMuteToggle(targetUser)}>{targetUser.isMuted ? 'Unmute' : 'Mute'}</ActionButton>}
+                    
+                    <hr className="border-gray-500 my-2" />
+
+                    {viewerIsHost && !isTargetHost && !isTargetCoHost && <ActionButton onClick={() => onMakeCoHost(targetUser)}>Make Co-host</ActionButton>}
+                    {viewerIsHost && isTargetCoHost && <ActionButton onClick={() => onRemoveCoHost(targetUser)}>Remove as Co-host</ActionButton>}
+                    
+                    {!isTargetHost && <ActionButton onClick={() => onKick(targetUser)} className="text-yellow-400">Kick from Room</ActionButton>}
+                    {!isTargetHost && <ActionButton onClick={() => onBan(targetUser)} className="text-red-500">Ban from Room</ActionButton>}
+                </div>
             </div>
         </div>
     );
@@ -78,361 +92,185 @@ const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({ currentUser, ro
 interface LiveRoomScreenProps {
   currentUser: User;
   roomId: string;
-  onNavigate: (view: AppView, props?: any) => void;
   onGoBack: () => void;
-  onSetTtsMessage: (message: string) => void;
 }
 
-const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, onNavigate, onGoBack, onSetTtsMessage }) => {
-    const [room, setRoom] = useState<LiveAudioRoom | null>(null);
-    const [messages, setMessages] = useState<LiveRoomMessage[]>([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
-    const [isInviteModalOpen, setInviteModalOpen] = useState(false);
-    const [toast, setToast] = useState<{ message: string; id: number } | null>(null);
-    const [floatingEmojis, setFloatingEmojis] = useState<{ emoji: string; id: number; left: string }[]>([]);
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [openUserMenu, setOpenUserMenu] = useState<string | null>(null);
-    
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const agoraClient = useRef<IAgoraRTCClient | null>(null);
-    const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
-    const userMenuRef = useRef<HTMLDivElement>(null);
-    
-    const onGoBackRef = useRef(onGoBack);
-    const onSetTtsMessageRef = useRef(onSetTtsMessage);
-
-    useEffect(() => {
-        onGoBackRef.current = onGoBack;
-        onSetTtsMessageRef.current = onSetTtsMessage;
-    });
-
-    const showToast = (message: string) => {
-        setToast({ message, id: Date.now() });
-    };
-
-    // Main Effect for Initialization, Connection, and Cleanup
-    useEffect(() => {
-        let isMounted = true;
-        const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-        agoraClient.current = client;
-
-        const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
-            if (!isMounted) return;
-            await client.subscribe(user, mediaType);
-            if (mediaType === 'audio') user.audioTrack?.play();
-        };
-
-        const handleVolumeIndicator = (volumes: any[]) => {
-            if (!isMounted) return;
-            if (volumes.length === 0) { setActiveSpeakerId(null); return; };
-            const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
-            setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
-        };
-        
-        // Setup Firestore listeners
-        const unsubRoom = firebaseService.listenToRoom(roomId, 'audio', (roomDetails: LiveAudioRoom | null) => {
-            if (!isMounted) return;
-            if (roomDetails) {
-                 if (roomDetails.kickedUserIds?.includes(currentUser.id)) {
-                    onSetTtsMessageRef.current("You have been removed from this room.");
-                    onGoBackRef.current();
-                    return;
-                }
-                setRoom(roomDetails);
-            } else {
-                onSetTtsMessageRef.current("The room has ended.");
-                onGoBackRef.current();
-            }
-        });
-
-        const unsubMessages = firebaseService.listenToRoomMessages(roomId, (msgs) => isMounted && setMessages(msgs));
-        const unsubEvents = firebaseService.listenToRoomEvents(roomId, (event) => {
-            if(isMounted) setFloatingEmojis(prev => [...prev, { emoji: event.emoji, id: Date.now(), left: `${Math.random() * 80 + 10}%` }]);
-        });
-
-        const initializeAndJoinRoom = async () => {
-            try {
-                // 1. Check Agora App ID
-                if (!AGORA_APP_ID) throw new Error("Agora App ID is not configured.");
-
-                // 2. Fetch initial room details for permission checks
-                const initialRoom = await geminiService.getAudioRoomDetails(roomId);
-                if (!initialRoom) throw new Error("Room not found.");
-                if (!isMounted) return;
-
-                // 3. Check permissions before joining
-                if (initialRoom.kickedUserIds?.includes(currentUser.id)) throw new Error("You have been removed from this room.");
-                if (initialRoom.privacy === 'private' && initialRoom.host.id !== currentUser.id && !initialRoom.invitedUserIds?.includes(currentUser.id)) {
-                    throw new Error("This is a private room. You need an invitation to join.");
-                }
-
-                // 4. Join in Firebase (update participant list)
-                await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
-                if (!isMounted) return;
-                setIsLoading(false);
-
-                // 5. Setup Agora client and listeners
-                client.on('user-published', handleUserPublished);
-                client.enableAudioVolumeIndicator();
-                client.on('volume-indicator', handleVolumeIndicator);
-
-                // 6. Get Agora token and join channel
-                const uid = parseInt(currentUser.id, 36) % 10000000;
-                const token = await geminiService.getAgoraToken(roomId, uid);
-                if (!token) throw new Error("Could not get a token to join the room.");
-                if (!isMounted) return;
-
-                await client.join(AGORA_APP_ID, roomId, token, uid);
-
-            } catch (error: any) {
-                console.error("Failed to initialize or join room:", error);
-                if (isMounted) {
-                    onSetTtsMessageRef.current(error.message || "Failed to join room.");
-                    onGoBackRef.current();
-                }
-            }
-        };
-
-        initializeAndJoinRoom();
-
-        return () => {
-            isMounted = false;
-            client.off('user-published', handleUserPublished);
-            client.off('volume-indicator', handleVolumeIndicator);
-            unsubRoom();
-            unsubMessages();
-            unsubEvents();
-
-            if (localAudioTrack.current) {
-                localAudioTrack.current.stop();
-                localAudioTrack.current.close();
-                localAudioTrack.current = null;
-            }
-            agoraClient.current?.leave();
-            geminiService.leaveLiveAudioRoom(currentUser.id, roomId);
-        };
-    }, [roomId, currentUser.id]);
-
-     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
-    
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-                setOpenUserMenu(null);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-    
-    // Effect to manage audio track publishing based on speaker role
-    useEffect(() => {
-        if (!room || !agoraClient.current) return;
-        const mySpeakerData = room.speakers.find(s => s.id === currentUser.id);
-        const amISpeakerNow = !!mySpeakerData;
-        const wasISpeakerBefore = !!localAudioTrack.current;
-        
-        const handleRoleChange = async () => {
-            if (amISpeakerNow && !wasISpeakerBefore) {
-                try {
-                    const track = await AgoraRTC.createMicrophoneAudioTrack();
-                    localAudioTrack.current = track;
-                    await agoraClient.current?.publish(track);
-                    // Sync with Firestore state immediately
-                    track.setMuted(mySpeakerData.isMuted ?? false);
-                } catch (error) { onSetTtsMessageRef.current("Could not activate microphone."); }
-            }
-            else if (!amISpeakerNow && wasISpeakerBefore) {
-                if (localAudioTrack.current) {
-                    await agoraClient.current?.unpublish([localAudioTrack.current]);
-                    localAudioTrack.current.stop();
-                    localAudioTrack.current.close();
-                    localAudioTrack.current = null;
-                }
-            } else if (amISpeakerNow && wasISpeakerBefore && localAudioTrack.current) {
-                // Already a speaker, just ensure mute state is synced
-                 localAudioTrack.current.setMuted(mySpeakerData.isMuted ?? false);
-            }
-        };
-        handleRoleChange();
-    }, [room, currentUser.id]);
-
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newMessage.trim()) {
-            await firebaseService.sendRoomMessage(roomId, currentUser, newMessage.trim());
-            setNewMessage('');
+const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, onGoBack }) => {
+  const [room, setRoom] = useState<LiveAudioRoom | null>(null);
+  const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const [menuTargetUser, setMenuTargetUser] = useState<RoomUser | null>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Real-time listener for the room document
+  useEffect(() => {
+    // FIX: Changed firebaseService.listenToLiveAudioRoom (which doesn't exist) to the correct geminiService.listenToAudioRoom.
+    const unsubscribe = geminiService.listenToAudioRoom(roomId, (liveRoom) => {
+      if (liveRoom) {
+        if (liveRoom.bannedUserIds?.includes(currentUser.id)) {
+            alert("You have been banned from this room.");
+            onGoBack();
+            return;
         }
+        setRoom(liveRoom);
+      } else {
+        alert("This room has ended.");
+        onGoBack();
+      }
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [roomId, currentUser.id, onGoBack]);
+
+  // Real-time listener for chat messages
+  useEffect(() => {
+    const unsubscribe = firebaseService.listenToRoomMessages(roomId, setMessages);
+    return () => unsubscribe();
+  }, [roomId]);
+
+
+  const { allUsers, viewerRole, isListener, hasRaisedHand } = useMemo(() => {
+    if (!room) return { allUsers: [], viewerRole: 'listener', isListener: true, hasRaisedHand: false };
+    
+    const speakers: RoomUser[] = (room.speakers || []).map(p => ({
+      ...p,
+      role: room.host.id === p.id ? 'host' : room.coHosts.some(c => c.id === p.id) ? 'co-host' : 'speaker',
+      isSpeaking: false, // This would be handled by Agora/voice detection in a full app
+    }));
+    
+    const listeners: RoomUser[] = (room.listeners || []).map(p => ({
+      ...p,
+      role: 'listener',
+      raisedHand: room.raisedHands.includes(p.id),
+    }));
+
+    const all = [...speakers, ...listeners];
+    const role = all.find(u => u.id === currentUser.id)?.role || 'listener';
+
+    return {
+      allUsers: all,
+      viewerRole: role,
+      isListener: role === 'listener',
+      hasRaisedHand: room.raisedHands.includes(currentUser.id),
     };
-    
-    // Derived states and event handlers
-    const isHost = room?.host.id === currentUser.id;
-    const isModerator = room?.moderatorIds.includes(currentUser.id) ?? false;
-    const canManage = isHost || isModerator;
-    const mySpeakerData = room?.speakers.find(s => s.id === currentUser.id);
-    const amISpeaker = !!mySpeakerData;
-    const amIMuted = mySpeakerData?.isMuted ?? false;
-    const hasRaisedHand = room?.raisedHands.includes(currentUser.id);
+  }, [room, currentUser.id]);
 
-    const handleLeave = () => isHost ? geminiService.endLiveAudioRoom(currentUser.id, roomId) : onGoBack();
-    const handleToggleMute = () => { if (amISpeaker) geminiService.toggleMuteInAudioRoom(roomId, currentUser.id, !amIMuted); };
-    const handleRaiseHand = () => hasRaisedHand ? geminiService.lowerHandInAudioRoom(currentUser.id, roomId) : geminiService.raiseHandInAudioRoom(currentUser.id, roomId);
-    const handleInviteToSpeak = (userId: string) => { geminiService.inviteToSpeakInAudioRoom(currentUser.id, userId, roomId); showToast('Invitation sent'); };
-    const handleMoveToAudience = (userId: string) => { geminiService.moveToAudienceInAudioRoom(currentUser.id, userId, roomId); showToast('Moved to audience'); };
-    const handleHostMute = (speakerId: string, shouldMute: boolean) => { geminiService.toggleMuteInAudioRoom(roomId, speakerId, shouldMute); showToast(shouldMute ? 'User muted' : 'User unmuted'); };
-    const handlePromote = (user: User) => { geminiService.promoteToModeratorInAudioRoom(currentUser.id, user.id, roomId); showToast(`${user.name} is now a moderator`); };
-    const handleDemote = (user: User) => { geminiService.demoteFromModeratorInAudioRoom(currentUser.id, user.id, roomId); showToast(`${user.name} is no longer a moderator`); };
-    const handleRemove = (user: User) => { geminiService.removeUserFromAudioRoom(currentUser.id, user.id, roomId); showToast(`${user.name} has been removed`); };
+  const isModerator = viewerRole === 'host' || viewerRole === 'co-host';
 
-    const handleSendReaction = (emoji: string) => {
-        geminiService.sendReactionInAudioRoom(roomId, currentUser.id, emoji);
-        setShowEmojiPicker(false);
+  const handleAvatarClick = (user: RoomUser) => {
+    if (isModerator && user.id !== currentUser.id) {
+      setMenuTargetUser(user);
     }
+  };
+  
+  const closeMenu = () => setMenuTargetUser(null);
 
-    if (isLoading || !room) {
-        return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Joining Room...</div>;
-    }
-    
-    const memberCount = room.speakers.length + room.listeners.length;
-    const speakerIdMap = useMemo(() => {
-        const map = new Map<string, string>();
-        room.speakers.forEach(s => {
-            const agoraUID = (parseInt(s.id, 36) % 10000000).toString();
-            map.set(agoraUID, s.id);
-        });
-        return map;
-    }, [room.speakers]);
-    const activeAppSpeakerId = activeSpeakerId ? speakerIdMap.get(activeSpeakerId) : null;
-    const raisedHandUsers = room.listeners.filter(l => room.raisedHands.includes(l.id));
+  // FIX: Added currentUser.id as the first argument (hostId) to match the function signature.
+  const onInvite = (user: RoomParticipant) => { firebaseService.inviteToSpeakInAudioRoom(currentUser.id, user.id, roomId); closeMenu(); };
+  // FIX: Added currentUser.id as the first argument (hostId) to match the function signature.
+  const onMoveToAudience = (user: RoomParticipant) => { firebaseService.moveToAudienceInAudioRoom(currentUser.id, user.id, roomId); closeMenu(); };
+  const onMuteToggle = (user: RoomParticipant) => { firebaseService.updateParticipantMuteStatus(roomId, user.id, !user.isMuted); closeMenu(); };
+  const onMakeCoHost = (user: RoomParticipant) => { firebaseService.makeCoHost(roomId, user.id); closeMenu(); };
+  const onRemoveCoHost = (user: RoomParticipant) => { firebaseService.removeCoHost(roomId, user.id); closeMenu(); };
+  const onKick = (user: RoomParticipant) => { firebaseService.kickFromRoom(roomId, user.id); closeMenu(); };
+  const onBan = (user: RoomParticipant) => { firebaseService.banFromRoom(roomId, user.id); closeMenu(); };
+  
+  const handleRaiseHand = () => {
+    firebaseService.raiseHandInAudioRoom(roomId, currentUser.id, !hasRaisedHand);
+  };
 
-    return (
-        <>
-        <div className="h-full w-full flex flex-col bg-black text-white font-sans relative overflow-hidden">
-            {floatingEmojis.map(emoji => (
-                <span key={emoji.id} className="absolute bottom-20 text-4xl animate-float-up pointer-events-none" style={{ left: emoji.left, animationDelay: `${Math.random() * 0.5}s` }}>
-                    {emoji.emoji}
-                </span>
-            ))}
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    const author: Author = { id: currentUser.id, name: currentUser.name, username: currentUser.username, avatarUrl: currentUser.avatarUrl };
+    firebaseService.sendRoomMessage(roomId, author, newMessage);
+    setNewMessage('');
+  };
 
-            <header className="flex-shrink-0 p-3 flex justify-between items-center border-b border-slate-700/50">
-                <div className="flex items-center gap-3">
-                    <img src={room.host.avatarUrl} alt={room.host.name} className="w-10 h-10 rounded-full" />
-                    <div>
-                        <h1 className="font-bold text-lg flex items-center gap-2">{room.topic} {room.privacy === 'private' && <Icon name="lock-closed" className="w-4 h-4 text-slate-400"/>}</h1>
-                        <p className="text-sm text-slate-400">{memberCount} Members</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setInviteModalOpen(true)} className="p-2 rounded-full hover:bg-slate-800"><Icon name="add-friend" className="w-6 h-6"/></button>
-                    <button onClick={handleLeave} className="bg-rose-600 text-white font-bold px-4 py-2 rounded-lg text-sm">{isHost ? 'End Room' : 'Leave'}</button>
-                </div>
-            </header>
-
-            <main className="flex-grow overflow-y-auto p-4 flex flex-col gap-6">
-                {/* Speakers Section */}
-                <div>
-                    <h2 className="text-xs uppercase font-bold text-slate-400 mb-2">Speakers ({room.speakers.length})</h2>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-                        {room.speakers.map(speaker => {
-                            const isSpeakerHost = speaker.id === room.host.id;
-                            const isSpeakerMod = room.moderatorIds.includes(speaker.id);
-                            return(
-                                <div key={speaker.id} className="flex flex-col items-center gap-1.5 text-center relative transition-all duration-300">
-                                    <img 
-                                        src={speaker.avatarUrl}
-                                        alt={speaker.name}
-                                        className={`w-20 h-20 rounded-2xl border-2 transition-all ${speaker.id === activeAppSpeakerId ? 'border-green-400' : 'border-transparent'}`}
-                                    />
-                                    {speaker.isMuted && <div className="absolute top-1 right-1 bg-black/50 p-1 rounded-full"><Icon name="microphone-slash" className="w-4 h-4 text-white"/></div>}
-                                    <p className="text-sm text-slate-200 truncate w-full">{speaker.name}</p>
-                                    <div className="text-xs text-lime-400 h-4">{isSpeakerHost ? 'Host' : isSpeakerMod ? 'Moderator' : ''}</div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-                
-                 {/* Listeners Section */}
-                <div>
-                     <h2 className="text-xs uppercase font-bold text-slate-400 mb-2">Audience ({room.listeners.length})</h2>
-                     <div className="space-y-2">
-                         {room.listeners.map(listener => {
-                            const hasListenerRaisedHand = room.raisedHands.includes(listener.id);
-                            const isListenerMod = room.moderatorIds.includes(listener.id);
-                             return (
-                             <div key={listener.id} className="flex items-center justify-between p-2 hover:bg-slate-800/50 rounded-lg transition-colors duration-300">
-                                 <div className="flex items-center gap-3"><img src={listener.avatarUrl} className="w-8 h-8 rounded-full"/><span className="text-slate-200">{listener.name}</span> {isListenerMod && <span className="text-xs text-lime-400">Moderator</span>}</div>
-                                 {canManage && (
-                                     hasListenerRaisedHand ? (
-                                        <div className="flex gap-2">
-                                            <button onClick={() => geminiService.lowerHandInAudioRoom(listener.id, roomId)} className="text-xs px-2 py-1 bg-slate-600 rounded-md">Dismiss</button>
-                                            <button onClick={() => handleInviteToSpeak(listener.id)} className="text-xs px-2 py-1 bg-lime-600 text-black rounded-md">Invite</button>
-                                        </div>
-                                     ) : (
-                                         <button onClick={() => setOpenUserMenu(listener.id)} className="p-1 rounded-full text-slate-400 hover:text-white"><Icon name="ellipsis-vertical" className="w-5 h-5"/></button>
-                                     )
-                                 )}
-                             </div>
-                         )})}
-                     </div>
-                </div>
-            </main>
-
-            {/* Chat Overlay */}
-             <div className="absolute bottom-20 left-4 right-4 h-48 overflow-hidden" style={{ maskImage: 'linear-gradient(to top, black 60%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to top, black 60%, transparent 100%)' }}>
-                <div className="h-full overflow-y-auto p-4 flex flex-col-reverse gap-4">
-                     <div ref={messagesEndRef} />
-                     {messages.slice().reverse().map(msg => (
-                        <div key={msg.id} className="flex items-start gap-3 animate-fade-in-fast">
-                            <img src={msg.sender.avatarUrl} alt={msg.sender.name} className="w-8 h-8 rounded-full"/>
-                            <div>
-                                <p className="font-semibold text-sm text-slate-300">{msg.sender.name}</p>
-                                <div className="mt-1 bg-black/30 px-3 py-2 rounded-xl inline-block">
-                                    <p className="text-white break-words">{msg.text}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+  if (isLoading || !room) {
+    return <div className="h-full w-full flex items-center justify-center bg-black text-white">Loading Room...</div>
+  }
+  
+  return (
+    <>
+      <div className="h-full w-full flex flex-col bg-black text-white font-sans overflow-hidden">
+        {/* Header */}
+        <header className="flex-shrink-0 p-3 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <img src="https://i.pravatar.cc/150?u=unmad" alt="Unmad" className="w-12 h-12 rounded-lg" />
             </div>
+            <div>
+              <h1 className="font-bold text-lg">{room.topic}</h1>
+              <p className="text-xs text-gray-400">Members: {allUsers.length}</p>
+            </div>
+          </div>
+          <button onClick={onGoBack}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </header>
 
-            <footer className="flex-shrink-0 p-2 bg-black border-t border-slate-700/50 flex items-center justify-between gap-2">
-                <div className="relative">
-                    {showEmojiPicker && (
-                         <div className="absolute bottom-full mb-2 bg-slate-800 rounded-full p-1.5 flex items-center gap-1 shadow-lg border border-slate-600">
-                            {EMOJI_REACTIONS.map(emoji => <button key={emoji} onClick={() => handleSendReaction(emoji)} className="text-3xl p-1 rounded-full hover:bg-slate-700 transition-transform hover:scale-125">{emoji}</button>)}
-                        </div>
-                    )}
-                    <button onClick={() => setShowEmojiPicker(p => !p)} className="p-3 rounded-full bg-slate-700 hover:bg-slate-600"><Icon name="face-smile" className="w-6 h-6"/></button>
-                </div>
-                <form onSubmit={handleSendMessage} className="flex-grow">
-                    <input
-                        type="text"
-                        value={newMessage}
-                        onChange={e => setNewMessage(e.target.value)}
-                        placeholder="Say something..."
-                        className="w-full bg-slate-800 rounded-full py-2.5 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500"
-                    />
-                </form>
-                {amISpeaker ? (
-                    <button onClick={handleToggleMute} className={`p-3 rounded-full ${amIMuted ? 'bg-rose-600' : 'bg-slate-700'}`}>
-                        <Icon name={amIMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6 text-white"/>
-                    </button>
-                ) : (
-                     <button onClick={handleRaiseHand} className={`p-3 rounded-full ${hasRaisedHand ? 'bg-lime-600' : 'bg-slate-700'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a.75.75 0 01.75.75v9.5a.75.75 0 01-1.5 0V4.25A.75.75 0 0110 3.5z" /><path d="M8.22 5.22a.75.75 0 011.06 0l2.25 2.25a.75.75 0 01-1.06 1.06L10 8.06l-1.47 1.47a.75.75 0 01-1.06-1.06l2.25-2.25z" /><path d="M4.75 12.5a.75.75 0 01.75-.75h9a.75.75 0 010 1.5h-9a.75.75 0 01-.75-.75z" /></svg>
-                    </button>
-                )}
-            </footer>
-             {toast && <div key={toast.id} className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-sm animate-toast">{toast.message}</div>}
+        {/* Ranking Bar */}
+        <div className="flex-shrink-0 px-3 py-2 flex items-center gap-3">
+            {/* This part can be dynamic in the future */}
         </div>
-        {isInviteModalOpen && <InviteFriendsModal currentUser={currentUser} room={room} onClose={() => setInviteModalOpen(false)} onSetTtsMessage={onSetTtsMessage}/>}
-        </>
-    );
+        
+        {/* Main content area for users and chat */}
+        <div className="flex-grow relative overflow-hidden">
+          <div className="absolute inset-0 p-3 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-y-4 gap-x-2 overflow-y-auto no-scrollbar">
+            {allUsers.map(user => <UserAvatar key={user.id} user={user} onClick={() => handleAvatarClick(user)} />)}
+          </div>
+
+          <div 
+            className="absolute bottom-16 left-0 right-0 h-2/5 p-3 flex flex-col-reverse gap-3 overflow-hidden pointer-events-none"
+            style={{ maskImage: 'linear-gradient(to top, black 20%, transparent 100%)' }}
+          >
+            <div className="flex flex-col-reverse justify-start gap-3">
+              {messages.slice().reverse().map((msg) => (
+                <div key={msg.id} className="flex items-start gap-2 max-w-[80%] pointer-events-auto bg-black/40 backdrop-blur-sm p-2 rounded-lg animate-slide-in-bottom">
+                  <img src={msg.user.avatarUrl} alt={msg.user.name} className="w-8 h-8 rounded-full flex-shrink-0" />
+                  <div className="flex-grow">
+                    <p className="text-xs text-gray-400">{msg.user.name}</p>
+                    <p className="text-sm text-white">{msg.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Message Input Bar */}
+        <footer className="flex-shrink-0 p-2 bg-black flex items-center gap-2">
+          {isListener && (
+            <button onClick={handleRaiseHand} className={`p-2.5 rounded-lg ${hasRaisedHand ? 'bg-yellow-500' : 'bg-gray-800'}`}>
+              <span className="text-lg" role="img" aria-label="Raise hand">✋</span>
+            </button>
+          )}
+          <form onSubmit={handleSendMessage} className="relative flex-grow">
+            <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Say Hi..." className="w-full bg-gray-800 rounded-full py-2.5 pl-4 pr-10 text-sm" />
+          </form>
+          <button onClick={onGoBack} className="p-2.5 bg-red-600 rounded-lg">
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+          </button>
+        </footer>
+      </div>
+
+      {menuTargetUser && viewerRole && (
+          <UserActionMenu
+              targetUser={menuTargetUser}
+              viewerRole={viewerRole}
+              onClose={closeMenu}
+              onInvite={onInvite}
+              onMoveToAudience={onMoveToAudience}
+              onMuteToggle={onMuteToggle}
+              onMakeCoHost={onMakeCoHost}
+              onRemoveCoHost={onRemoveCoHost}
+              onKick={onKick}
+              onBan={onBan}
+          />
+      )}
+    </>
+  );
 };
 
 export default LiveRoomScreen;

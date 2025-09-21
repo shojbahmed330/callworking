@@ -6,7 +6,7 @@ import 'firebase/compat/storage';
 import { User as FirebaseUser } from 'firebase/auth';
 
 import { db, auth, storage } from './firebaseConfig';
-import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call, LiveRoomMessage, LiveRoomEvent } from '../types';
+import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call, RoomMessage, RoomParticipant } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
 const { serverTimestamp, increment, arrayUnion, arrayRemove, delete: deleteField } = firebase.firestore.FieldValue;
@@ -1380,329 +1380,259 @@ export const firebaseService = {
     },
 
     // --- Rooms ---
-    listenToRoomMessages(roomId: string, callback: (messages: LiveRoomMessage[]) => void) {
-        const messagesRef = db.collection('liveAudioRooms').doc(roomId).collection('messages').orderBy('createdAt', 'asc').limitToLast(50);
-        return messagesRef.onSnapshot(snapshot => {
-            const messages = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-                } as LiveRoomMessage;
-            });
-            callback(messages);
-        }, (error) => {
-            console.error(`Error listening to messages for room ${roomId}:`, error);
-            callback([]);
-        });
-    },
-    async sendRoomMessage(roomId: string, sender: User, text: string): Promise<void> {
-        const messagesRef = db.collection('liveAudioRooms').doc(roomId).collection('messages');
-        const senderInfo = {
-            id: sender.id,
-            name: sender.name,
-            avatarUrl: sender.avatarUrl,
-            username: sender.username
-        };
-        await messagesRef.add({
-            sender: senderInfo,
-            text,
-            createdAt: serverTimestamp(),
-        });
-    },
-    listenToLiveAudioRooms(callback: (rooms: LiveAudioRoom[]) => void) {
-        const q = db.collection('liveAudioRooms').where('status', '==', 'live').where('privacy', '==', 'public');
-        return q.onSnapshot((snapshot) => {
-            const rooms = snapshot.docs.map(d => {
-                const data = d.data();
-                return {
-                    id: d.id,
-                    ...data,
-                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
-                } as LiveAudioRoom;
-            });
-            callback(rooms);
-        }, (error) => {
-            console.error("Error listening to live audio rooms:", error);
-            callback([]);
-        });
-    },
-    listenToLiveVideoRooms(callback: (rooms: LiveVideoRoom[]) => void) {
-        const q = db.collection('liveVideoRooms').where('status', '==', 'live');
-        return q.onSnapshot((snapshot) => {
-            const rooms = snapshot.docs.map(d => {
-                const data = d.data();
-                return {
-                    id: d.id,
-                    ...data,
-                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
-                } as LiveVideoRoom;
-            });
-            callback(rooms);
-        }, (error) => {
-            console.error("Error listening to live video rooms:", error);
-            callback([]);
-        });
-    },
-    listenToAudioRoom(roomId: string, callback: (room: LiveAudioRoom | null) => void) {
-        return this.listenToRoom(roomId, 'audio', callback);
-    },
-    listenToRoom(roomId: string, type: 'audio' | 'video', callback: (room: LiveAudioRoom | LiveVideoRoom | null) => void) {
-        const collectionName = type === 'audio' ? 'liveAudioRooms' : 'liveVideoRooms';
-        return db.collection(collectionName).doc(roomId).onSnapshot((d) => {
-            if (d.exists) {
-                const data = d.data();
-                const roomData = {
-                    id: d.id,
-                    ...data,
-                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
-                };
-                callback(roomData as LiveAudioRoom | LiveVideoRoom);
-            } else {
-                callback(null);
-            }
-        }, (error) => {
-            console.error(`Error listening to ${type} room ${roomId}:`, error);
-            callback(null);
-        });
-    },
-    async createLiveAudioRoom(host: User, topic: string, privacy: 'public' | 'private'): Promise<LiveAudioRoom> {
-        const hostInfo = { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl };
-        const newRoomData = {
-            host: hostInfo,
-            topic,
-            speakers: [{ ...hostInfo, isMuted: false }],
-            listeners: [],
-            moderatorIds: [],
-            raisedHands: [],
-            createdAt: serverTimestamp(),
-            status: 'live',
-            privacy,
-            invitedUserIds: [],
-            kickedUserIds: []
-        };
-        const docRef = await db.collection('liveAudioRooms').add(newRoomData);
-        const doc = await docRef.get();
-        const data = doc.data();
-        return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt.toDate().toISOString(),
-        } as LiveAudioRoom;
-    },
-    async createLiveVideoRoom(host: User, topic: string): Promise<LiveVideoRoom> {
-        const newRoomData = {
-            host: { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl },
-            topic,
-            participants: [{ ...host, isMuted: false, isCameraOff: false }],
-            createdAt: serverTimestamp(),
-            status: 'live',
-        };
-        const docRef = await db.collection('liveVideoRooms').add(newRoomData);
-        const doc = await docRef.get();
-        const data = doc.data();
-        return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt.toDate().toISOString(),
-        } as LiveVideoRoom;
-    },
-    async joinLiveAudioRoom(userId: string, roomId: string): Promise<void> {
-        const user = await this.getUserProfileById(userId);
-        if (!user) return;
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        await roomRef.update({
-            listeners: arrayUnion({ id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl }),
-        });
-    },
-    async joinLiveVideoRoom(userId: string, roomId: string): Promise<void> {
-        const user = await this.getUserProfileById(userId);
-        if (!user) return;
-        const roomRef = db.collection('liveVideoRooms').doc(roomId);
-        await roomRef.update({
-            participants: arrayUnion({ ...user, isMuted: false, isCameraOff: false }),
-        });
-    },
-    async leaveLiveAudioRoom(userId: string, roomId: string): Promise<void> {
-        const user = await this.getUserProfileById(userId);
-        if (!user) return;
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if(roomDoc.exists) {
-            const roomData = roomDoc.data();
-            const speaker = roomData.speakers.find(s => s.id === userId);
-            const listener = roomData.listeners.find(l => l.id === userId);
-            const updatePayload: any = {
-                raisedHands: arrayRemove(userId)
-            };
-            if(speaker) updatePayload.speakers = arrayRemove(speaker);
-            if(listener) updatePayload.listeners = arrayRemove(listener);
-
-            await roomRef.update(updatePayload);
-        }
-    },
-    async leaveLiveVideoRoom(userId: string, roomId: string): Promise<void> {
-        const user = await this.getUserProfileById(userId);
-        if (!user) return;
-        const roomRef = db.collection('liveVideoRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if(roomDoc.exists) {
-            const participants = roomDoc.data().participants || [];
-            const updatedParticipants = participants.filter(p => p.id !== userId);
-            await roomRef.update({ participants: updatedParticipants });
-        }
-    },
-    async endLiveAudioRoom(userId: string, roomId: string): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && roomDoc.data().host.id === userId) {
-            await roomRef.update({ status: 'ended' });
-        }
-    },
-    async endLiveVideoRoom(userId: string, roomId: string): Promise<void> {
-        const roomRef = db.collection('liveVideoRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && roomDoc.data().host.id === userId) {
-            await roomRef.update({ status: 'ended' });
-        }
-    },
-    async getAudioRoomDetails(roomId: string): Promise<LiveAudioRoom | null> {
-        const doc = await db.collection('liveAudioRooms').doc(roomId).get();
-        if (doc.exists) {
-            const data = doc.data();
+listenToLiveAudioRooms(callback: (rooms: LiveAudioRoom[]) => void) {
+    const q = db.collection('liveAudioRooms').where('status', '==', 'live').orderBy('createdAt', 'desc');
+    return q.onSnapshot((snapshot) => {
+        const rooms = snapshot.docs.map(d => {
+            const data = d.data();
             return {
-                id: doc.id,
+                id: d.id,
                 ...data,
-                createdAt: data.createdAt.toDate().toISOString()
+                createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
             } as LiveAudioRoom;
-        }
-        return null;
-    },
-    async raiseHandInAudioRoom(userId: string, roomId: string): Promise<void> {
-        await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayUnion(userId) });
-    },
-    async inviteToSpeakInAudioRoom(hostId: string, userId: string, roomId: string): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && (roomDoc.data().host.id === hostId || roomDoc.data().moderatorIds.includes(hostId))) {
-            const listener = roomDoc.data().listeners.find(l => l.id === userId);
-            if (listener) {
-                await roomRef.update({
-                    listeners: arrayRemove(listener),
-                    speakers: arrayUnion({ ...listener, isMuted: false }),
-                    raisedHands: arrayRemove(userId),
-                });
-            }
-        }
-    },
-    async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && (roomDoc.data().host.id === hostId || roomDoc.data().moderatorIds.includes(hostId))) {
-            const speaker = roomDoc.data().speakers.find(s => s.id === userId);
-            if (speaker && speaker.id !== roomDoc.data().host.id) {
-                await roomRef.update({
-                    speakers: arrayRemove(speaker),
-                    listeners: arrayUnion(speaker),
-                });
-            }
-        }
-    },
-    async inviteFriendToRoom(inviter: User, friendId: string, room: LiveAudioRoom): Promise<void> {
-        const notificationRef = db.collection('users').doc(friendId).collection('notifications').doc();
-        await notificationRef.set({
-            type: 'room_invite',
-            user: { id: inviter.id, name: inviter.name, avatarUrl: inviter.avatarUrl, username: inviter.username },
-            roomId: room.id,
-            roomTopic: room.topic,
-            createdAt: serverTimestamp(),
-            read: false,
         });
-        await db.collection('liveAudioRooms').doc(room.id).update({
-            invitedUserIds: arrayUnion(friendId)
+        callback(rooms);
+    });
+},
+listenToLiveVideoRooms(callback: (rooms: LiveVideoRoom[]) => void) {
+    const q = db.collection('liveVideoRooms').where('status', '==', 'live');
+    return q.onSnapshot((snapshot) => {
+        const rooms = snapshot.docs.map(d => {
+            const data = d.data();
+            return {
+                id: d.id,
+                ...data,
+                createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+            } as LiveVideoRoom;
         });
-    },
-    async promoteToModeratorInAudioRoom(hostId, targetUserId, roomId): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && roomDoc.data().host.id === hostId) {
-            await roomRef.update({ moderatorIds: arrayUnion(targetUserId) });
+        callback(rooms);
+    });
+},
+listenToRoom(roomId: string, type: 'audio' | 'video', callback: (room: LiveAudioRoom | LiveVideoRoom | null) => void) {
+    const collectionName = type === 'audio' ? 'liveAudioRooms' : 'liveVideoRooms';
+    return db.collection(collectionName).doc(roomId).onSnapshot((d) => {
+        if (d.exists) {
+            const data = d.data();
+            const roomData = {
+                id: d.id,
+                ...data,
+                createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+            };
+            callback(roomData as LiveAudioRoom | LiveVideoRoom);
+        } else {
+            callback(null);
         }
-    },
-    async demoteFromModeratorInAudioRoom(hostId, targetUserId, roomId): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && roomDoc.data().host.id === hostId) {
-            await roomRef.update({ moderatorIds: arrayRemove(targetUserId) });
-        }
-    },
-    async removeUserFromAudioRoom(adminId, targetUserId, roomId): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists) {
-            const roomData = roomDoc.data() as LiveAudioRoom;
-            const canManage = roomData.host.id === adminId || (roomData.moderatorIds || []).includes(adminId);
-            if (canManage) {
-                const listenerObj = roomData.listeners.find(l => l.id === targetUserId);
-                const speakerObj = roomData.speakers.find(s => s.id === targetUserId);
-                
-                const updatePayload: any = {
-                    kickedUserIds: arrayUnion(targetUserId)
-                };
-                if (listenerObj) updatePayload.listeners = arrayRemove(listenerObj);
-                if (speakerObj) updatePayload.speakers = arrayRemove(speakerObj);
-    
-                await roomRef.update(updatePayload);
-            }
-        }
-    },
-    async sendReactionInAudioRoom(roomId: string, userId: string, emoji: string): Promise<void> {
-        const eventsRef = db.collection('liveAudioRooms').doc(roomId).collection('events');
-        await eventsRef.add({
-            type: 'reaction',
-            emoji,
-            senderId: userId,
-            createdAt: serverTimestamp(),
-        });
-    },
-    listenToRoomEvents(roomId: string, callback: (event: LiveRoomEvent) => void): () => void {
-        const q = db.collection('liveAudioRooms').doc(roomId).collection('events').orderBy('createdAt', 'desc').limit(1);
-        return q.onSnapshot(snapshot => {
-            if (!snapshot.empty && snapshot.docs[0].data().createdAt) {
-                const doc = snapshot.docs[0];
-                const data = doc.data();
-                callback({
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt.toDate().toISOString(),
-                } as LiveRoomEvent);
-            }
-        }, (error) => {
-            console.error(`Error listening to events for room ${roomId}:`, error);
-        });
-    },
-    async lowerHandInAudioRoom(userId: string, roomId: string): Promise<void> {
-        await db.collection('liveAudioRooms').doc(roomId).update({ raisedHands: arrayRemove(userId) });
-    },
-    async toggleMuteInAudioRoom(roomId: string, speakerId: string, isMuted: boolean): Promise<void> {
-        const roomRef = db.collection('liveAudioRooms').doc(roomId);
-        await db.runTransaction(async (transaction) => {
-            const roomDoc = await transaction.get(roomRef);
-            if (!roomDoc.exists) {
-                throw "Room does not exist!";
-            }
-            const roomData = roomDoc.data() as LiveAudioRoom;
-            const speakers = roomData.speakers || [];
-            const speakerIndex = speakers.findIndex(s => s.id === speakerId);
-    
-            if (speakerIndex !== -1) {
-                speakers[speakerIndex].isMuted = isMuted;
-                transaction.update(roomRef, { speakers });
-            }
-        });
-    },
+    });
+},
+async createLiveAudioRoom(host: User, topic: string): Promise<LiveAudioRoom> {
+    const hostAuthor = { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl };
+    const newRoomData = {
+        host: hostAuthor,
+        topic,
+        speakers: [{ ...hostAuthor, isMuted: false }],
+        listeners: [],
+        coHosts: [],
+        raisedHands: [],
+        bannedUserIds: [],
+        createdAt: serverTimestamp(),
+        status: 'live',
+    };
+    const docRef = await db.collection('liveAudioRooms').add(newRoomData);
+    const doc = await docRef.get();
+    const data = doc.data();
+    return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt.toDate().toISOString(),
+    } as LiveAudioRoom;
+},
+async createLiveVideoRoom(host: User, topic: string): Promise<LiveVideoRoom> {
+    const newRoomData = {
+        host: { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl },
+        topic,
+        participants: [{ ...host, isMuted: false, isCameraOff: false }],
+        createdAt: serverTimestamp(),
+        status: 'live',
+    };
+    const docRef = await db.collection('liveVideoRooms').add(newRoomData);
+    const doc = await docRef.get();
+    const data = doc.data();
+    return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt.toDate().toISOString(),
+    } as LiveVideoRoom;
+},
+async joinLiveAudioRoom(userId: string, roomId: string): Promise<void> {
+    const user = await this.getUserProfileById(userId);
+    if (!user) return;
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await roomRef.update({
+        listeners: arrayUnion({ id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl, isMuted: true }),
+    });
+},
+async joinLiveVideoRoom(userId: string, roomId: string): Promise<void> {
+    const user = await this.getUserProfileById(userId);
+    if (!user) return;
+    const roomRef = db.collection('liveVideoRooms').doc(roomId);
+    await roomRef.update({
+        participants: arrayUnion({ ...user, isMuted: false, isCameraOff: false }),
+    });
+},
+async leaveLiveAudioRoom(userId: string, roomId: string): Promise<void> {
+    const user = await this.getUserProfileById(userId);
+    if (!user) return;
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+     await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) return;
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const updates = {
+            listeners: roomData.listeners.filter(p => p.id !== userId),
+            speakers: roomData.speakers.filter(p => p.id !== userId),
+            coHosts: roomData.coHosts.filter(p => p.id !== userId),
+            raisedHands: arrayRemove(userId),
+        };
+        transaction.update(roomRef, updates);
+    });
+},
+async leaveLiveVideoRoom(userId: string, roomId: string): Promise<void> {
+    const user = await this.getUserProfileById(userId);
+    if (!user) return;
+    const roomRef = db.collection('liveVideoRooms').doc(roomId);
+    // This is more complex in real-time, requires a transaction to prevent race conditions.
+    const roomDoc = await roomRef.get();
+    if(roomDoc.exists) {
+        const participants = roomDoc.data().participants || [];
+        const updatedParticipants = participants.filter(p => p.id !== userId);
+        await roomRef.update({ participants: updatedParticipants });
+    }
+},
+async endLiveAudioRoom(userId: string, roomId: string): Promise<void> {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    const roomDoc = await roomRef.get();
+    if (roomDoc.exists && roomDoc.data().host.id === userId) {
+        await roomRef.update({ status: 'ended' });
+    }
+},
+async endLiveVideoRoom(userId: string, roomId: string): Promise<void> {
+    const roomRef = db.collection('liveVideoRooms').doc(roomId);
+    const roomDoc = await roomRef.get();
+    if (roomDoc.exists && roomDoc.data().host.id === userId) {
+        await roomRef.update({ status: 'ended' });
+    }
+},
+async getAudioRoomDetails(roomId: string): Promise<LiveAudioRoom | null> {
+    const doc = await db.collection('liveAudioRooms').doc(roomId).get();
+    if (doc.exists) {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt.toDate().toISOString()
+        } as LiveAudioRoom;
+    }
+    return null;
+},
+async raiseHandInAudioRoom(roomId: string, userId: string, raise: boolean) {
+    await db.collection('liveAudioRooms').doc(roomId).update({
+        raisedHands: raise ? arrayUnion(userId) : arrayRemove(userId)
+    });
+},
+async inviteToSpeakInAudioRoom(roomId: string, targetUserId: string) {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        
+        const userToMove = roomData.listeners.find(u => u.id === targetUserId);
+        if (!userToMove) return;
 
+        const newListeners = roomData.listeners.filter(u => u.id !== targetUserId);
+        const newSpeakers = [...roomData.speakers, { ...userToMove, isMuted: true }];
+
+        transaction.update(roomRef, {
+            listeners: newListeners,
+            speakers: newSpeakers,
+            raisedHands: arrayRemove(targetUserId)
+        });
+    });
+},
+async moveToAudienceInAudioRoom(roomId: string, targetUserId: string) {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+     await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        
+        const userToMove = roomData.speakers.find(u => u.id === targetUserId);
+        if (!userToMove || roomData.host.id === targetUserId) return; // Can't move host
+
+        const newSpeakers = roomData.speakers.filter(u => u.id !== targetUserId);
+        const newListeners = [...roomData.listeners, { ...userToMove, isMuted: true }];
+
+        transaction.update(roomRef, {
+            listeners: newListeners,
+            speakers: newSpeakers,
+            coHosts: arrayRemove(userToMove)
+        });
+    });
+},
+listenToRoomMessages(roomId: string, callback: (messages: RoomMessage[]) => void) {
+    const q = db.collection('liveAudioRooms').doc(roomId).collection('messages').orderBy('createdAt', 'desc').limit(20);
+    return q.onSnapshot((snapshot) => {
+        const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RoomMessage)).reverse();
+        callback(messages);
+    });
+},
+async sendRoomMessage(roomId: string, user: Author, text: string) {
+    await db.collection('liveAudioRooms').doc(roomId).collection('messages').add({
+        user,
+        text,
+        createdAt: serverTimestamp()
+    });
+},
+async updateParticipantMuteStatus(roomId: string, participantId: string, isMuted: boolean) {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const speakers = roomData.speakers.map(s => s.id === participantId ? { ...s, isMuted } : s);
+        transaction.update(roomRef, { speakers });
+    });
+},
+async makeCoHost(roomId: string, targetUserId: string) {
+    const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const targetUser = [...roomData.speakers, ...roomData.listeners].find(u => u.id === targetUserId);
+        if (!targetUser) return;
+        
+        transaction.update(roomRef, { coHosts: arrayUnion(targetUser) });
+    });
+},
+async removeCoHost(roomId: string, targetUserId: string) {
+     const roomRef = db.collection('liveAudioRooms').doc(roomId);
+    await db.runTransaction(async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists) throw new Error("Room not found");
+        const roomData = roomDoc.data() as LiveAudioRoom;
+        const targetUser = roomData.coHosts.find(u => u.id === targetUserId);
+        if (!targetUser) return;
+        transaction.update(roomRef, { coHosts: arrayRemove(targetUser) });
+    });
+},
+async kickFromRoom(roomId: string, targetUserId: string) {
+    await this.leaveLiveAudioRoom(targetUserId, roomId);
+},
+async banFromRoom(roomId: string, targetUserId: string) {
+    await this.leaveLiveAudioRoom(targetUserId, roomId);
+    await db.collection('liveAudioRooms').doc(roomId).update({ bannedUserIds: arrayUnion(targetUserId) });
+},
     // --- Campaigns, Stories, Groups, Admin, etc. ---
     async getCampaignsForSponsor(sponsorId: string): Promise<Campaign[]> {
         const q = db.collection('campaigns').where('sponsorId', '==', sponsorId).orderBy('createdAt', 'desc');

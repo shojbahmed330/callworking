@@ -407,9 +407,11 @@ export const geminiService = {
     // --- Rooms ---
     listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void) => firebaseService.listenToLiveAudioRooms(callback),
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
-    listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),
-    listenToVideoRoom: (roomId: string, callback: (room: LiveVideoRoom | null) => void) => firebaseService.listenToRoom(roomId, 'video', callback),
-    createLiveAudioRoom: (host: User, topic: string, privacy: 'public' | 'private') => firebaseService.createLiveAudioRoom(host, topic, privacy),
+    // FIX: Add type assertion to resolve callback type mismatch.
+    listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback as (room: LiveAudioRoom | LiveVideoRoom | null) => void),
+    // FIX: Add type assertion to resolve callback type mismatch.
+    listenToVideoRoom: (roomId: string, callback: (room: LiveVideoRoom | null) => void) => firebaseService.listenToRoom(roomId, 'video', callback as (room: LiveAudioRoom | LiveVideoRoom | null) => void),
+    createLiveAudioRoom: (host: User, topic: string) => firebaseService.createLiveAudioRoom(host, topic),
     createLiveVideoRoom: (host: User, topic: string) => firebaseService.createLiveVideoRoom(host, topic),
     joinLiveAudioRoom: (userId: string, roomId: string) => firebaseService.joinLiveAudioRoom(userId, roomId),
     joinLiveVideoRoom: (userId: string, roomId: string) => firebaseService.joinLiveVideoRoom(userId, roomId),
@@ -421,14 +423,6 @@ export const geminiService = {
     raiseHandInAudioRoom: (userId: string, roomId: string) => firebaseService.raiseHandInAudioRoom(userId, roomId),
     inviteToSpeakInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.inviteToSpeakInAudioRoom(hostId, userId, roomId),
     moveToAudienceInAudioRoom: (hostId: string, userId: string, roomId: string) => firebaseService.moveToAudienceInAudioRoom(hostId, userId, roomId),
-    lowerHandInAudioRoom: (userId: string, roomId: string) => firebaseService.lowerHandInAudioRoom(userId, roomId),
-    toggleMuteInAudioRoom: (roomId: string, speakerId: string, isMuted: boolean) => firebaseService.toggleMuteInAudioRoom(roomId, speakerId, isMuted),
-    inviteFriendToRoom: (inviter: User, friendId: string, room: LiveAudioRoom) => firebaseService.inviteFriendToRoom(inviter, friendId, room),
-    promoteToModeratorInAudioRoom: (hostId, targetUserId, roomId) => firebaseService.promoteToModeratorInAudioRoom(hostId, targetUserId, roomId),
-    demoteFromModeratorInAudioRoom: (hostId, targetUserId, roomId) => firebaseService.demoteFromModeratorInAudioRoom(hostId, targetUserId, roomId),
-    removeUserFromAudioRoom: (adminId, targetUserId, roomId) => firebaseService.removeUserFromAudioRoom(adminId, targetUserId, roomId),
-    sendReactionInAudioRoom: (roomId, userId, emoji) => firebaseService.sendReactionInAudioRoom(roomId, userId, emoji),
-    listenToRoomEvents: (roomId, callback) => firebaseService.listenToRoomEvents(roomId, callback),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),

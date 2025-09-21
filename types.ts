@@ -1,6 +1,5 @@
 
 
-
 export interface User {
   id: string;
   name: string; // Full Name
@@ -191,7 +190,7 @@ export interface Conversation {
   unreadCount: number;
 }
 
-export type NotificationType = 'like' | 'comment' | 'friend_request' | 'friend_request_approved' | 'campaign_approved' | 'campaign_rejected' | 'group_post' | 'group_join_request' | 'group_request_approved' | 'admin_announcement' | 'admin_warning' | 'room_invite';
+export type NotificationType = 'like' | 'comment' | 'friend_request' | 'friend_request_approved' | 'campaign_approved' | 'campaign_rejected' | 'group_post' | 'group_join_request' | 'group_request_approved' | 'admin_announcement' | 'admin_warning';
 
 export interface Notification {
   id: string;
@@ -205,8 +204,6 @@ export interface Notification {
   groupId?: string;
   groupName?: string;
   message?: string; // For announcements and warnings
-  roomId?: string;
-  roomTopic?: string;
 }
 
 export type ChatTheme = 'default' | 'sunset' | 'ocean' | 'forest' | 'classic';
@@ -248,39 +245,31 @@ export interface Campaign {
   };
 }
 
-export interface LiveRoomMessage {
-  id: string;
-  sender: Pick<User, 'id' | 'name' | 'avatarUrl' | 'username'>;
-  text: string;
-  createdAt: string; // ISO string
-}
-
-export interface AudioParticipantState extends User {
+export interface RoomParticipant extends Author {
     isMuted?: boolean;
+    isShielded?: boolean;
 }
 
-export interface LiveRoomEvent {
-    id: string;
-    type: 'reaction';
-    emoji: string;
-    senderId: string;
-    createdAt: string; // ISO string
+export interface RoomMessage {
+  id: string;
+  user: Author;
+  text: string;
+  createdAt: any; // Firestore Timestamp
 }
 
 export interface LiveAudioRoom {
   id: string;
-  host: User;
+  host: Author;
   topic: string;
-  speakers: AudioParticipantState[];
-  listeners: User[];
-  moderatorIds: string[];
+  coHosts: Author[];
+  speakers: RoomParticipant[];
+  listeners: RoomParticipant[];
   raisedHands: string[]; // Array of user IDs
-  createdAt: string;
+  bannedUserIds: string[];
+  createdAt: string; // ISO
   status: 'live' | 'ended';
-  privacy: 'public' | 'private';
-  invitedUserIds?: string[];
-  kickedUserIds?: string[];
 }
+
 
 export interface VideoParticipantState extends User {
     isMuted?: boolean;

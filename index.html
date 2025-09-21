@@ -41,6 +41,19 @@
       .animate-fade-in-fast {
         animation: fade-in-fast 0.2s ease-out;
       }
+       @keyframes slide-in-bottom {
+        0% {
+          transform: translateY(100%);
+          opacity: 0;
+        }
+        100% {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      .animate-slide-in-bottom {
+        animation: slide-in-bottom 0.5s cubic-bezier(0.250, 0.460, 0.450, 0.940) both;
+      }
       /* Hide scrollbar for elements with this class */
       .no-scrollbar::-webkit-scrollbar {
         display: none;
@@ -51,43 +64,6 @@
       }
       .text-shadow-lg {
         text-shadow: 0 0 10px rgba(57, 255, 20, 0.7);
-      }
-       /* Animation for floating emoji reactions in audio rooms */
-      @keyframes float-up {
-        from {
-          transform: translateY(0) scale(1);
-          opacity: 1;
-        }
-        to {
-          transform: translateY(-300px) scale(0.5);
-          opacity: 0;
-        }
-      }
-      .animate-float-up {
-        animation: float-up 4s ease-out forwards;
-      }
-
-      /* Animation for toast notifications */
-      @keyframes toast-in-out {
-        0% {
-          transform: translateY(100%);
-          opacity: 0;
-        }
-        15% {
-          transform: translateY(0);
-          opacity: 1;
-        }
-        85% {
-          transform: translateY(0);
-          opacity: 1;
-        }
-        100% {
-          transform: translateY(100%);
-          opacity: 0;
-        }
-      }
-      .animate-toast {
-        animation: toast-in-out 3s ease-in-out forwards;
       }
     </style>
     
