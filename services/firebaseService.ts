@@ -705,23 +705,26 @@ export const firebaseService = {
     // --- AGORA TOKEN ---
     getAgoraToken: async (channelName: string, uid: string | number): Promise<string | null> => {
         try {
-            // Point to the new, in-project serverless function
-            const tokenUrl = `/api/token?channelName=${channelName}&uid=${uid}`;
+            // The user requested to use the external token server via a proxy.
+            // This proxy (`/api/proxy.ts`) will forward the request to the specified URL.
+            const tokenUrl = `/api/proxy?channelName=${channelName}&uid=${uid}`;
             const response = await fetch(tokenUrl);
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
-                console.error("Token generation error:", response.status, errorData);
-                throw new Error(errorData.error || 'Failed to fetch token from local API');
+                const errorData = await response.json().catch(() => ({ error: 'The proxy server returned an error.' }));
+                console.error("Token proxy error:", response.status, errorData);
+                throw new Error(errorData.error || 'Failed to fetch token via proxy');
             }
             const data = await response.json();
+            // The user's server code returns the token in `rtcToken`
             if (!data.rtcToken) {
-                throw new Error("Local token API response did not include rtcToken.");
+                console.error("Proxy response did not include rtcToken:", data);
+                throw new Error("Invalid token response from server.");
             }
             return data.rtcToken;
         } catch (error) {
             console.error("Error fetching Agora token:", error);
-            throw new Error('Failed to get Agora token.'); // Re-throw to be caught by UI components
+            throw new Error('Failed to get Agora token.');
         }
     },
     

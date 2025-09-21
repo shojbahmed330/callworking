@@ -13,13 +13,11 @@
 "react": "^19.1.1",
 "react-dom": "^19.1.1",
 "firebase": "^12.1.0",
-"agora-rtc-sdk-ng": "^4.24.0",
-"agora-token": "^2.0.5"
+"agora-rtc-sdk-ng": "^4.24.0"
 },
 "devDependencies": {
 "@types/node": "^22.14.0",
 "typescript": "~5.8.2",
-"vite": "^5.3.1",
-"@vercel/node": "^5.3.23"
+"vite": "^5.3.1"
 }
 }
