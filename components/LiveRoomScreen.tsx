@@ -58,33 +58,48 @@ const Avatar: React.FC<{ user: User; isHost?: boolean; isSpeaking?: boolean; chi
     </div>
 );
 
+const HeartAnimation = () => (
+    <div className="heart-animation-container">
+        {Array.from({ length: 15 }).map((_, i) => (
+            <div
+                key={i}
+                className="heart"
+                style={{
+                    left: `${Math.random() * 90 + 5}%`,
+                    animationDelay: `${Math.random() * 2}s`,
+                    fontSize: `${Math.random() * 1.5 + 1.5}rem`,
+                }}
+            >
+                ❤️
+            </div>
+        ))}
+    </div>
+);
+
+
 const ChatMessage: React.FC<{ 
     message: LiveAudioRoomMessage; 
     activeSpeakerId: string | null; 
     isMe: boolean;
-    theme: typeof CHAT_THEMES[ChatTheme];
     onReact: (messageId: string, emoji: string) => void;
-}> = ({ message, activeSpeakerId, isMe, theme, onReact }) => {
+}> = ({ message, activeSpeakerId, isMe, onReact }) => {
     const isSpeaking = message.sender.id === activeSpeakerId;
     const [isPickerOpen, setPickerOpen] = useState(false);
     const isJumbo = isJumboEmoji(message.text);
 
     const bubbleClasses = useMemo(() => {
-        const base = 'px-3 py-2 rounded-xl max-w-[90%] break-words relative backdrop-blur-sm transition-all duration-300';
+        const base = 'px-4 py-2 rounded-2xl max-w-xs relative transition-all duration-300';
         if (isJumbo) {
             return `bg-transparent`;
         }
         if (isMe) {
-            return `${base} ${theme.myBubble} bg-opacity-80 ml-auto rounded-br-none`;
+            return `${base} bg-gradient-to-br from-blue-600 to-violet-600 text-white ml-auto rounded-br-none`;
         }
         if (message.isHost) {
-            return `${base} bg-amber-500/40 border border-amber-400/50 rounded-bl-none`;
+            return `${base} bg-slate-700 text-slate-100 border border-amber-400/50 rounded-bl-none`;
         }
-        if (message.isSpeaker) {
-            return `${base} bg-sky-500/40 border border-sky-400/50 rounded-bl-none`;
-        }
-        return `${base} bg-slate-700/50 rounded-bl-none`;
-    }, [isMe, message.isHost, message.isSpeaker, theme, isJumbo]);
+        return `${base} bg-slate-700 text-slate-100 rounded-bl-none`;
+    }, [isMe, message.isHost, isJumbo]);
 
     const glowClass = isSpeaking ? 'shadow-[0_0_15px_rgba(57,255,20,0.7)]' : '';
     
@@ -97,23 +112,21 @@ const ChatMessage: React.FC<{
     }, [message.reactions]);
 
     return (
-        <div className="flex flex-col animate-fade-in-fast">
-            <div className={`flex items-start gap-2 group ${isMe ? 'flex-row-reverse' : ''}`}>
+        <div className={`w-full flex animate-fade-in-fast ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <div className={`flex items-start gap-2 group max-w-[85%] ${isMe ? 'flex-row-reverse' : ''}`}>
                  {!isMe && <img src={message.sender.avatarUrl} alt={message.sender.name} className="w-8 h-8 rounded-full mt-1 flex-shrink-0" />}
-                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} flex-grow`}>
+                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                     {!isMe && (
                         <div className="flex items-baseline gap-2 px-1">
-                            <p className="text-sm font-bold" style={{ color: theme.headerText }}>
+                            <p className="text-sm font-bold text-slate-300">
                                 {message.sender.name}
                                 {message.isHost && <span className="ml-1.5" title="Host">👑</span>}
                             </p>
                         </div>
                     )}
-                    <div className="relative w-full">
-                        <div className={`inline-block ${isMe ? 'ml-auto' : ''}`}>
-                             <div className={`${bubbleClasses} ${glowClass}`}>
-                                <p className={`text-base ${theme.text} break-words ${isJumbo ? 'jumbo-emoji animate-jumbo' : ''}`}>{message.text}</p>
-                            </div>
+                    <div className="relative">
+                        <div className={`${bubbleClasses} ${glowClass}`}>
+                           <p className={`text-base break-words overflow-wrap-break-word ${isJumbo ? 'jumbo-emoji animate-jumbo' : ''}`}>{message.text}</p>
                         </div>
                         <div className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-900/50 backdrop-blur-sm border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'}`}>
                              <button onClick={() => setPickerOpen(p => !p)} className="text-lg">😀</button>
@@ -122,7 +135,7 @@ const ChatMessage: React.FC<{
                         {isPickerOpen && (
                             <div className={`absolute bottom-full mb-1 p-1.5 rounded-full bg-slate-900/80 backdrop-blur-sm border border-slate-600 flex items-center gap-1 shadow-lg z-10 ${isMe ? 'right-0' : 'left-0'}`}>
                                 {AVAILABLE_REACTIONS.map(emoji => (
-                                    <button key={emoji} onClick={() => { onReact(message.id, emoji); setPickerOpen(false); }} className="text-2xl p-1 rounded-full hover:bg-slate-700/50 transition-transform hover:scale-125">
+                                    <button key={emoji} type="button" onClick={() => { onReact(message.id, emoji); setPickerOpen(false); }} className="text-2xl p-1 rounded-full hover:bg-slate-700/50 transition-transform hover:scale-125">
                                         {emoji}
                                     </button>
                                 ))}
@@ -144,23 +157,6 @@ const ChatMessage: React.FC<{
         </div>
     );
 };
-
-const ThemePicker: React.FC<{onSelect: (theme: any) => void, onClose: () => void}> = ({ onSelect, onClose }) => {
-    return (
-        <div className="absolute top-14 right-4 z-40 bg-slate-800/80 backdrop-blur-md border border-slate-600 rounded-lg p-2 shadow-2xl animate-fade-in-fast">
-             <div className="grid grid-cols-3 gap-2">
-                {Object.entries(CHAT_THEMES).map(([key, theme]) => (
-                    <button key={key} onClick={() => onSelect(theme)} className="flex flex-col items-center gap-1 p-1 rounded-md hover:bg-slate-700/50">
-                        <div className={`w-12 h-8 rounded-md bg-gradient-to-br ${theme.bgGradient} flex items-center justify-end p-1`}>
-                             <div className={`w-4 h-3 rounded ${theme.myBubble}`}></div>
-                        </div>
-                        <p className="text-xs text-slate-300">{theme.name}</p>
-                    </button>
-                ))}
-            </div>
-        </div>
-    )
-}
 
 const BackgroundParticles: React.FC = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -198,9 +194,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
     const [activeTheme, setActiveTheme] = useState(CHAT_THEMES.default);
-    const [isThemePickerOpen, setThemePickerOpen] = useState(false);
     const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
     const [floatingEmojis, setFloatingEmojis] = useState<{ id: number; emoji: string; }[]>([]);
+    const [showHeartAnimation, setShowHeartAnimation] = useState(false);
     const prevReactionsRef = useRef<Record<string, Record<string, number>>>({});
 
 
@@ -398,10 +394,16 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (newMessage.trim() === '' || !room) return;
+        const trimmedMessage = newMessage.trim();
+        if (trimmedMessage === '' || !room) return;
         
+        if (trimmedMessage === '❤️' || trimmedMessage === '😍') {
+            setShowHeartAnimation(true);
+            setTimeout(() => setShowHeartAnimation(false), 3000);
+        }
+
         try {
-            await geminiService.sendLiveAudioRoomMessage(roomId, currentUser, newMessage.trim(), !!isHost, isSpeaker);
+            await geminiService.sendLiveAudioRoomMessage(roomId, currentUser, trimmedMessage, !!isHost, isSpeaker);
             setNewMessage('');
             setEmojiPickerOpen(false);
         } catch (error) {
@@ -549,18 +551,18 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                  <header className="p-4 flex-shrink-0 border-b border-white/10 flex justify-between items-center z-10">
                     <h2 className="font-bold text-lg">Room Chat</h2>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => setThemePickerOpen(p => !p)} className="p-2 rounded-full hover:bg-white/10">
-                            <Icon name="swatch" className="w-5 h-5" />
+                        <button className="p-2 rounded-full hover:bg-white/10" disabled>
+                            <Icon name="swatch" className="w-5 h-5 opacity-0"/>
                         </button>
                         <button onClick={() => setIsChatOpen(false)} className="md:hidden p-2 rounded-full hover:bg-white/10">
                             <Icon name="close" className="w-5 h-5" />
                         </button>
                     </div>
                 </header>
-                 {isThemePickerOpen && <ThemePicker onSelect={theme => { setActiveTheme(theme); setThemePickerOpen(false); }} onClose={() => setThemePickerOpen(false)}/>}
-                <div className="flex-grow p-4 overflow-y-auto space-y-4 z-10">
+                <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
+                    {showHeartAnimation && <HeartAnimation />}
                     {messages.map(msg => (
-                        <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} theme={activeTheme} onReact={handleReact} />
+                        <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} onReact={handleReact} />
                     ))}
                     <div ref={messagesEndRef} />
                 </div>
