@@ -12,10 +12,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
   
-  // Use the imported constant for APP_ID
   const APP_ID = AGORA_APP_ID;
-  // Assume APP_CERTIFICATE is an environment variable set in Vercel.
-  // This is a secret and should not be in the code.
   const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
   if (!APP_ID || !APP_CERTIFICATE) {

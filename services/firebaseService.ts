@@ -705,20 +705,17 @@ export const firebaseService = {
     // --- AGORA TOKEN ---
     getAgoraToken: async (channelName: string, uid: string | number): Promise<string | null> => {
         try {
-            // The user requested to use the external token server via a proxy.
-            // This proxy (`/api/proxy.ts`) will forward the request to the specified URL.
-            const tokenUrl = `/api/proxy?channelName=${channelName}&uid=${uid}`;
+            const tokenUrl = `/api/token?channelName=${channelName}&uid=${uid}`;
             const response = await fetch(tokenUrl);
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'The proxy server returned an error.' }));
-                console.error("Token proxy error:", response.status, errorData);
-                throw new Error(errorData.error || 'Failed to fetch token via proxy');
+                const errorData = await response.json().catch(() => ({ error: 'The server returned an error.' }));
+                console.error("Token server error:", response.status, errorData);
+                throw new Error(errorData.error || 'Failed to fetch token from server');
             }
             const data = await response.json();
-            // The user's server code returns the token in `rtcToken`
             if (!data.rtcToken) {
-                console.error("Proxy response did not include rtcToken:", data);
+                console.error("Server response did not include rtcToken:", data);
                 throw new Error("Invalid token response from server.");
             }
             return data.rtcToken;
