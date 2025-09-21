@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppView, LiveAudioRoom, User, LiveRoomMessage, AudioParticipantState, LiveRoomEvent } from '../types';
 import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';
@@ -112,13 +112,14 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         setToast({ message, id: Date.now() });
     };
 
-    // Effect for Agora Voice Connection
+    // Main Effect for Initialization, Connection, and Cleanup
     useEffect(() => {
+        let isMounted = true;
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
-        let isMounted = true;
 
         const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+            if (!isMounted) return;
             await client.subscribe(user, mediaType);
             if (mediaType === 'audio') user.audioTrack?.play();
         };
@@ -129,74 +130,10 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max, { level: -1 });
             setActiveSpeakerId(mainSpeaker.level > 5 ? mainSpeaker.uid.toString() : null);
         };
-
-        const initialize = async () => {
-            try {
-                if (!AGORA_APP_ID) {
-                    onSetTtsMessageRef.current("Agora App ID is not configured. Real-time audio will not work.");
-                    throw new Error("Agora App ID not configured");
-                }
-                
-                const initialRoom = await geminiService.getAudioRoomDetails(roomId);
-                if (!isMounted || !initialRoom) {
-                    if (isMounted) onSetTtsMessageRef.current("Room not found.");
-                    throw new Error("Room not found or component unmounted");
-                }
-
-                if (initialRoom.kickedUserIds?.includes(currentUser.id)) {
-                    if(isMounted) onSetTtsMessageRef.current("You have been removed from this room.");
-                    throw new Error("User kicked");
-                }
-                if (initialRoom.privacy === 'private' && initialRoom.host.id !== currentUser.id && !initialRoom.invitedUserIds?.includes(currentUser.id)) {
-                    if(isMounted) onSetTtsMessageRef.current("This is a private room. You need an invitation to join.");
-                    throw new Error("Private room");
-                }
-
-                await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
-                if (!isMounted) return;
-
-                client.on('user-published', handleUserPublished);
-                client.enableAudioVolumeIndicator();
-                client.on('volume-indicator', handleVolumeIndicator);
-                
-                const uid = parseInt(currentUser.id, 36) % 10000000;
-                
-                const token = await geminiService.getAgoraToken(roomId, uid);
-                if (!isMounted || !token) {
-                    if (isMounted) onSetTtsMessageRef.current("Could not join the room due to a connection issue.");
-                    throw new Error("Token fetch failed or component unmounted");
-                }
-                
-                await client.join(AGORA_APP_ID, roomId, token, uid);
-
-            } catch (error) {
-                console.error("Failed to initialize Live Room:", error);
-                if (isMounted) {
-                    onGoBackRef.current();
-                }
-            }
-        };
-
-        initialize();
-
-        return () => {
-            isMounted = false;
-            client.off('user-published', handleUserPublished);
-            client.off('volume-indicator', handleVolumeIndicator);
-            if (localAudioTrack.current) {
-                localAudioTrack.current.stop();
-                localAudioTrack.current.close();
-                localAudioTrack.current = null;
-            }
-            agoraClient.current?.leave();
-            geminiService.leaveLiveAudioRoom(currentUser.id, roomId);
-        };
-    }, [roomId, currentUser.id]);
-    
-    // Effect for Firestore Listeners (Room and Messages)
-    useEffect(() => {
-        setIsLoading(true);
-        const unsubscribeRoom = firebaseService.listenToAudioRoom(roomId, (roomDetails) => {
+        
+        // Setup Firestore listeners
+        const unsubRoom = firebaseService.listenToRoom(roomId, 'audio', (roomDetails: LiveAudioRoom | null) => {
+            if (!isMounted) return;
             if (roomDetails) {
                  if (roomDetails.kickedUserIds?.includes(currentUser.id)) {
                     onSetTtsMessageRef.current("You have been removed from this room.");
@@ -208,19 +145,73 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 onSetTtsMessageRef.current("The room has ended.");
                 onGoBackRef.current();
             }
-            setIsLoading(false);
         });
 
-        const unsubscribeMessages = firebaseService.listenToRoomMessages(roomId, setMessages);
-        
-        const unsubscribeEvents = firebaseService.listenToRoomEvents(roomId, (event) => {
-            setFloatingEmojis(prev => [...prev, { emoji: event.emoji, id: Date.now(), left: `${Math.random() * 80 + 10}%` }]);
+        const unsubMessages = firebaseService.listenToRoomMessages(roomId, (msgs) => isMounted && setMessages(msgs));
+        const unsubEvents = firebaseService.listenToRoomEvents(roomId, (event) => {
+            if(isMounted) setFloatingEmojis(prev => [...prev, { emoji: event.emoji, id: Date.now(), left: `${Math.random() * 80 + 10}%` }]);
         });
+
+        const initializeAndJoinRoom = async () => {
+            try {
+                // 1. Check Agora App ID
+                if (!AGORA_APP_ID) throw new Error("Agora App ID is not configured.");
+
+                // 2. Fetch initial room details for permission checks
+                const initialRoom = await geminiService.getAudioRoomDetails(roomId);
+                if (!initialRoom) throw new Error("Room not found.");
+                if (!isMounted) return;
+
+                // 3. Check permissions before joining
+                if (initialRoom.kickedUserIds?.includes(currentUser.id)) throw new Error("You have been removed from this room.");
+                if (initialRoom.privacy === 'private' && initialRoom.host.id !== currentUser.id && !initialRoom.invitedUserIds?.includes(currentUser.id)) {
+                    throw new Error("This is a private room. You need an invitation to join.");
+                }
+
+                // 4. Join in Firebase (update participant list)
+                await geminiService.joinLiveAudioRoom(currentUser.id, roomId);
+                if (!isMounted) return;
+                setIsLoading(false);
+
+                // 5. Setup Agora client and listeners
+                client.on('user-published', handleUserPublished);
+                client.enableAudioVolumeIndicator();
+                client.on('volume-indicator', handleVolumeIndicator);
+
+                // 6. Get Agora token and join channel
+                const uid = parseInt(currentUser.id, 36) % 10000000;
+                const token = await geminiService.getAgoraToken(roomId, uid);
+                if (!token) throw new Error("Could not get a token to join the room.");
+                if (!isMounted) return;
+
+                await client.join(AGORA_APP_ID, roomId, token, uid);
+
+            } catch (error: any) {
+                console.error("Failed to initialize or join room:", error);
+                if (isMounted) {
+                    onSetTtsMessageRef.current(error.message || "Failed to join room.");
+                    onGoBackRef.current();
+                }
+            }
+        };
+
+        initializeAndJoinRoom();
 
         return () => {
-            unsubscribeRoom();
-            unsubscribeMessages();
-            unsubscribeEvents();
+            isMounted = false;
+            client.off('user-published', handleUserPublished);
+            client.off('volume-indicator', handleVolumeIndicator);
+            unsubRoom();
+            unsubMessages();
+            unsubEvents();
+
+            if (localAudioTrack.current) {
+                localAudioTrack.current.stop();
+                localAudioTrack.current.close();
+                localAudioTrack.current = null;
+            }
+            agoraClient.current?.leave();
+            geminiService.leaveLiveAudioRoom(currentUser.id, roomId);
         };
     }, [roomId, currentUser.id]);
 
@@ -303,7 +294,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     }
 
     if (isLoading || !room) {
-        return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Room...</div>;
+        return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Joining Room...</div>;
     }
     
     const memberCount = room.speakers.length + room.listeners.length;
