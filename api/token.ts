@@ -34,9 +34,9 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
   try {
-    // FIX: The RtcTokenBuilder.buildTokenWithUserAccount function expects 7 arguments.
-    // The token expiration and privilege expiration were likely intended to be the same.
-    // Added privilegeExpiredTs for both to resolve the error.
+    // FIX: The runtime error "Expected 7 arguments, but got 6" indicates the installed 'agora-token'
+    // library version requires a 7th argument for this function. This argument is for stream privilege
+    // expiration, and passing 0 sets it to never expire, resolving the crash.
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       APP_ID,
       APP_CERTIFICATE,
@@ -44,7 +44,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       userAccount,
       role,
       privilegeExpiredTs,
-      privilegeExpiredTs
+      0
     );
 
     return res.status(200).json({ rtcToken: token });
