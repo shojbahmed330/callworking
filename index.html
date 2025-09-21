@@ -49,6 +49,14 @@
       .animate-fade-in-fast {
         animation: fade-in-fast 0.2s ease-out;
       }
+       @keyframes jumbo {
+        0% { transform: scale(0.8); }
+        80% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+      .animate-jumbo {
+        animation: jumbo 0.3s ease-out forwards;
+      }
       /* Hide scrollbar for elements with this class */
       .no-scrollbar::-webkit-scrollbar {
         display: none;

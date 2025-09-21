@@ -81,7 +81,7 @@ const ChatMessage: React.FC<{
                     <div className="relative w-full">
                         <div className={`inline-block ${isMe ? 'ml-auto' : ''}`}>
                              <div className={`${bubbleClasses} ${glowClass}`}>
-                                <p className={`text-base ${theme.text} word-break`}>{message.text}</p>
+                                <p className={`text-base ${theme.text} [word-break:break-word]`}>{message.text}</p>
                             </div>
                         </div>
                         <div className={`absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-900/50 backdrop-blur-sm border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'}`}>
@@ -405,8 +405,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     to { opacity: 1; transform: translateY(0); }
                 }
                 .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
-                .word-break { word-break: break-word; }
-
+                
                 @keyframes float-up {
                     0% { transform: translateY(0) scale(0.5); opacity: 1; }
                     100% { transform: translateY(-150px) scale(1.5); opacity: 0; }

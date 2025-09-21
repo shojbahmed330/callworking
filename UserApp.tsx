@@ -221,9 +221,16 @@ const UserApp: React.FC = () => {
     if (!user) return;
     await firebaseService.ensureChatDocumentExists(user, peer);
     
+    const isMobile = window.innerWidth < 768;
+
     setActiveChats(prev => {
         const existing = prev.filter(c => c.id !== peer.id);
         const newChats = [...existing, peer];
+        
+        if (isMobile) {
+            return [peer]; // On mobile, only allow one chat to be fully open
+        }
+
         if (newChats.length > 3) {
             return newChats.slice(newChats.length - 3);
         }

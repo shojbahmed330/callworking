@@ -13,7 +13,6 @@ interface ChatManagerProps {
   onMinimizeToggle: (peerId: string) => void;
   setIsChatRecording: (isRecording: boolean) => void;
   onNavigate: (view: AppView, props?: any) => void;
-  // FIX: Add missing onSetTtsMessage prop to fix type errors.
   onSetTtsMessage: (message: string) => void;
 }
 
@@ -47,8 +46,9 @@ const ChatManager: React.FC<ChatManagerProps> = ({
   const minimizedChatUsers = upToDateActiveChats.filter(c => minimizedChats.has(c.id));
 
   return (
-    <div className="fixed bottom-16 md:bottom-0 right-0 z-50 flex items-end gap-2 p-2 lg:p-4 lg:pr-[312px] pointer-events-none">
-      <div className="flex items-end gap-2 pointer-events-auto">
+    <div className="fixed bottom-16 md:bottom-0 right-0 z-50 flex items-end gap-2 p-0 md:p-2 lg:p-4 lg:pr-[312px] pointer-events-none">
+      {/* On mobile, widgets are full-screen and manage their own layout. On desktop, this div arranges them. */}
+      <div className="hidden md:flex items-end gap-2 pointer-events-auto">
         {minimizedChatUsers.map(peer => (
           <ChatWidget
             key={peer.id}
@@ -79,6 +79,24 @@ const ChatManager: React.FC<ChatManagerProps> = ({
             onSetTtsMessage={onSetTtsMessage}
           />
         ))}
+      </div>
+       {/* Render widgets without a flex container on mobile */}
+      <div className="contents md:hidden pointer-events-auto">
+         {upToDateActiveChats.map(peer => (
+             <ChatWidget
+                key={peer.id}
+                currentUser={currentUser}
+                peerUser={peer}
+                onClose={onCloseChat}
+                onMinimize={onMinimizeToggle}
+                onHeaderClick={onMinimizeToggle}
+                isMinimized={minimizedChats.has(peer.id)}
+                unreadCount={chatUnreadCounts[firebaseService.getChatId(currentUser.id, peer.id)] || 0}
+                setIsChatRecording={setIsChatRecording}
+                onNavigate={onNavigate}
+                onSetTtsMessage={onSetTtsMessage}
+            />
+         ))}
       </div>
     </div>
   );

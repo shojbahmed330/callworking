@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppView, VoiceState } from '../types';
 import Icon from './Icon';
 import VoiceCommandInput from './VoiceCommandInput';
@@ -48,6 +47,44 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = (props) => {
     const { onNavigate, friendRequestCount, activeView, voiceState, onMicClick, isChatRecording } = props;
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     
+    // State for Draggable FAB
+    const fabRef = useRef<HTMLDivElement>(null);
+    const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 160 });
+    const dragStartRef = useRef({ x: 0, y: 0 });
+    const hasMovedRef = useRef(false);
+
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        hasMovedRef.current = false;
+        const touch = e.touches[0];
+        dragStartRef.current = {
+            x: touch.clientX - position.x,
+            y: touch.clientY - position.y,
+        };
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        hasMovedRef.current = true;
+        const touch = e.touches[0];
+        const fabElement = fabRef.current;
+        if (!fabElement) return;
+
+        const rect = fabElement.getBoundingClientRect();
+        let newX = touch.clientX - dragStartRef.current.x;
+        let newY = touch.clientY - dragStartRef.current.y;
+
+        // Clamp position to be within the viewport
+        newX = Math.max(8, Math.min(newX, window.innerWidth - rect.width - 8));
+        newY = Math.max(8, Math.min(newY, window.innerHeight - rect.height - 8));
+
+        setPosition({ x: newX, y: newY });
+    };
+
+    const handleFabClick = () => {
+        if (hasMovedRef.current) return;
+        setIsCommandOpen(true);
+    };
+
     const getFabClass = () => {
         let base = "w-16 h-16 rounded-full text-white shadow-lg flex items-center justify-center transition-all duration-300 transform hover:scale-105";
         if (isChatRecording) {
@@ -100,9 +137,15 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = (props) => {
             </div>
 
             {/* Command FAB */}
-            <div className="fixed bottom-20 right-4 z-50 md:hidden">
+            <div 
+                ref={fabRef}
+                className="fixed z-50 md:hidden touch-none"
+                style={{ top: `${position.y}px`, left: `${position.x}px` }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+            >
                 <button
-                  onClick={() => setIsCommandOpen(true)}
+                  onClick={handleFabClick}
                   disabled={voiceState === VoiceState.PROCESSING || isChatRecording}
                   className={getFabClass()}
                   aria-label="Open Command Panel"
