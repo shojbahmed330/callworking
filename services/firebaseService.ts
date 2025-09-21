@@ -6,7 +6,7 @@ import 'firebase/compat/storage';
 import { User as FirebaseUser } from 'firebase/auth';
 
 import { db, auth, storage } from './firebaseConfig';
-import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call } from '../types';
+import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation, Call, LiveRoomMessage } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
 const { serverTimestamp, increment, arrayUnion, arrayRemove, delete: deleteField } = firebase.firestore.FieldValue;
@@ -1553,6 +1553,37 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             });
         }
     }
+},
+listenToLiveRoomMessages(roomId: string, callback: (messages: LiveRoomMessage[]) => void): () => void {
+    const messagesRef = db.collection('liveAudioRooms').doc(roomId).collection('messages').orderBy('createdAt', 'asc').limit(100);
+    return messagesRef.onSnapshot(snapshot => {
+        const messages = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            } as LiveRoomMessage;
+        });
+        callback(messages);
+    });
+},
+
+async sendLiveRoomMessage(roomId: string, sender: User, message: { text?: string; emoji?: string }): Promise<void> {
+    const messagesRef = db.collection('liveAudioRooms').doc(roomId).collection('messages');
+    
+    const newMessage = {
+        sender: {
+            id: sender.id,
+            name: sender.name,
+            avatarUrl: sender.avatarUrl,
+            username: sender.username,
+        },
+        ...message,
+        createdAt: serverTimestamp(),
+    };
+    
+    await messagesRef.add(newMessage);
 },
 
     // --- Campaigns, Stories, Groups, Admin, etc. ---

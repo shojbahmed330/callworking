@@ -256,6 +256,14 @@ export interface LiveAudioRoom {
   status: 'live' | 'ended';
 }
 
+export interface LiveRoomMessage {
+  id: string;
+  sender: Author;
+  text?: string;
+  emoji?: string;
+  createdAt: string;
+}
+
 export interface VideoParticipantState extends User {
     isMuted?: boolean;
     isCameraOff?: boolean;
