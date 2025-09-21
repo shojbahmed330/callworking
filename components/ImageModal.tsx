@@ -67,7 +67,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     const commentsById = new Map<string, Comment & { replies: Comment[] }>();
     comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
 
-    const topLevelComments: (Comment & { replies: Comment[] })[] = [];
+    const topLevelComments: (Comment & { replies: Comment[] }[]) = [];
     
     comments.forEach(c => {
         const commentWithReplies = commentsById.get(c.id);

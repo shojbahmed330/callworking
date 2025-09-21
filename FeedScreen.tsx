@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from './types';
-import { PostCard } from './PostCard';
-import CreatePostWidget from './CreatePostWidget';
-import SkeletonPostCard from './SkeletonPostCard';
+import { PostCard } from './components/PostCard';
+import CreatePostWidget from './components/CreatePostWidget';
+import SkeletonPostCard from './components/SkeletonPostCard';
 import { geminiService } from './services/geminiService';
-import RewardedAdWidget from './RewardedAdWidget';
+import RewardedAdWidget from './components/RewardedAdWidget';
 import { getTtsPrompt } from './constants';
-import StoriesTray from './StoriesTray';
+import StoriesTray from './components/StoriesTray';
 import { firebaseService } from './services/firebaseService';
 import { useSettings } from './contexts/SettingsContext';
 

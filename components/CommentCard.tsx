@@ -1,5 +1,3 @@
-
-
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { Comment, User } from '../types';
 import Icon from './Icon';
