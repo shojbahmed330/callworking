@@ -124,7 +124,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   useEffect(() => {
     if (!isMinimized) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-      firebaseService.markMessagesAsRead(chatId, currentUser.id);
+      // FIX: Call geminiService instead of firebaseService to maintain service layer abstraction.
+      geminiService.markMessagesAsRead(chatId, currentUser.id);
     }
   }, [messages, isMinimized, chatId, currentUser.id]);
   
@@ -202,12 +203,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUser, peerUser, onClose,
   };
 
   const handleReact = (messageId: string, emoji: string) => {
-    firebaseService.reactToMessage(chatId, messageId, currentUser.id, emoji);
+    // FIX: Call geminiService instead of firebaseService to maintain service layer abstraction.
+    geminiService.reactToMessage(chatId, messageId, currentUser.id, emoji);
   };
 
   const handleUnsend = (messageId: string) => {
     if (window.confirm("Are you sure you want to unsend this message?")) {
-        firebaseService.unsendMessage(chatId, messageId, currentUser.id);
+        // FIX: Call geminiService instead of firebaseService to maintain service layer abstraction.
+        geminiService.unsendMessage(chatId, messageId, currentUser.id);
     }
   };
   

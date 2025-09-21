@@ -1,15 +1,16 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
+import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from './types';
 import { PostCard } from './PostCard';
 import CreatePostWidget from './CreatePostWidget';
 import SkeletonPostCard from './SkeletonPostCard';
-import { geminiService } from '../services/geminiService';
+import { geminiService } from './services/geminiService';
 import RewardedAdWidget from './RewardedAdWidget';
-import { getTtsPrompt } from '../constants';
+import { getTtsPrompt } from './constants';
 import StoriesTray from './StoriesTray';
-import { firebaseService } from '../services/firebaseService';
-import { useSettings } from '../contexts/SettingsContext';
+import { firebaseService } from './services/firebaseService';
+import { useSettings } from './contexts/SettingsContext';
 
 interface FeedScreenProps {
   isLoading: boolean;
@@ -262,13 +263,16 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
             }
             break;
           case 'intent_scroll_down':
-              onSetScrollState('down');
+// FIX: Changed string literal to enum member to match expected type.
+              onSetScrollState(ScrollState.DOWN);
               break;
           case 'intent_scroll_up':
-              onSetScrollState('up');
+// FIX: Changed string literal to enum member to match expected type.
+              onSetScrollState(ScrollState.UP);
               break;
           case 'intent_stop_scroll':
-              onSetScrollState('none');
+// FIX: Changed string literal to enum member to match expected type.
+              onSetScrollState(ScrollState.NONE);
               break;
           case 'intent_help':
               onSetTtsMessage(getTtsPrompt('feed_loaded', language));

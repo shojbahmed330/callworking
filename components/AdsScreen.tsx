@@ -227,6 +227,7 @@ const AdsScreen: React.FC<AdsScreenProps> = ({ currentUser, onSetTtsMessage, las
         }
         setIsLoadingLeads(true);
         setViewingLeadsFor(campaignId);
+        // FIX: Call geminiService instead of firebaseService directly to maintain service layer abstraction.
         const fetchedLeads = await geminiService.getLeadsForCampaign(campaignId);
         setLeads(fetchedLeads);
         setIsLoadingLeads(false);

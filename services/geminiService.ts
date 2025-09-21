@@ -205,6 +205,7 @@ export const geminiService = {
   declineFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.declineFriendRequest(currentUserId, requestingUserId),
   checkFriendshipStatus: (currentUserId: string, profileUserId: string): Promise<FriendshipStatus> => firebaseService.checkFriendshipStatus(currentUserId, profileUserId),
   addFriend: (currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> => firebaseService.addFriend(currentUserId, targetUserId),
+  // FIX: Added missing passthrough methods to firebaseService
   unfriendUser: (currentUserId: string, targetUserId: string) => firebaseService.unfriendUser(currentUserId, targetUserId),
   cancelFriendRequest: (currentUserId: string, targetUserId: string) => firebaseService.cancelFriendRequest(currentUserId, targetUserId),
   async getRecommendedFriends(userId: string): Promise<User[]> {
@@ -223,6 +224,7 @@ export const geminiService = {
   async getUserById(userId: string): Promise<User | null> {
     return firebaseService.getUserProfileById(userId);
   },
+  // FIX: Added missing passthrough methods to firebaseService
   async searchUsers(query: string): Promise<User[]> {
     return firebaseService.searchUsers(query);
   },
@@ -235,6 +237,7 @@ export const geminiService = {
   async updateCoverPhoto(userId: string, base64: string, caption?: string, captionStyle?: Post['captionStyle']): Promise<{ updatedUser: User; newPost: Post } | null> {
     return firebaseService.updateCoverPhoto(userId, base64, caption, captionStyle);
   },
+  // FIX: Added missing passthrough methods to firebaseService
   async blockUser(currentUserId: string, targetUserId: string): Promise<boolean> {
       return firebaseService.blockUser(currentUserId, targetUserId);
   },
@@ -260,12 +263,13 @@ export const geminiService = {
   listenToMessages: (chatId, callback) => firebaseService.listenToMessages(chatId, callback),
   listenToConversations: (userId, callback) => firebaseService.listenToConversations(userId, callback),
   sendMessage: (chatId, sender, recipient, messageContent) => firebaseService.sendMessage(chatId, sender, recipient, messageContent),
-  unsendMessage: (chatId, messageId, userId) => firebaseService.unsendMessage(chatId, messageId, userId),
-  reactToMessage: (chatId, messageId, userId, emoji) => firebaseService.reactToMessage(chatId, messageId, userId, emoji),
-  deleteChatHistory: (chatId) => firebaseService.deleteChatHistory(chatId),
-  getChatSettings: (chatId) => firebaseService.getChatSettings(chatId),
-  updateChatSettings: (chatId, settings) => firebaseService.updateChatSettings(chatId, settings),
-  markMessagesAsRead: (chatId, userId) => firebaseService.markMessagesAsRead(chatId, userId),
+  // FIX: Added missing passthrough methods to firebaseService
+  unsendMessage: (chatId: string, messageId: string, userId: string) => firebaseService.unsendMessage(chatId, messageId, userId),
+  reactToMessage: (chatId: string, messageId: string, userId: string, emoji: string) => firebaseService.reactToMessage(chatId, messageId, userId, emoji),
+  deleteChatHistory: (chatId: string) => firebaseService.deleteChatHistory(chatId),
+  getChatSettings: (chatId: string) => firebaseService.getChatSettings(chatId),
+  updateChatSettings: (chatId: string, settings: ChatSettings) => firebaseService.updateChatSettings(chatId, settings),
+  markMessagesAsRead: (chatId: string, userId: string) => firebaseService.markMessagesAsRead(chatId, userId),
     createReplySnippet(message: Message): ReplyInfo {
         let content = '';
         if (message.isDeleted) {
@@ -304,6 +308,7 @@ export const geminiService = {
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),
     submitCampaignForApproval: (campaignData: Omit<Campaign, 'id'|'views'|'clicks'|'status'|'transactionId'>, transactionId: string) => firebaseService.submitCampaignForApproval(campaignData, transactionId),
     getRandomActiveCampaign: () => firebaseService.getRandomActiveCampaign(),
+    getLeadsForCampaign: (campaignId: string) => firebaseService.getLeadsForCampaign(campaignId),
     getStories: (currentUserId: string) => firebaseService.getStories(currentUserId),
     markStoryAsViewed: (storyId: string, userId: string) => firebaseService.markStoryAsViewed(storyId, userId),
     createStory: (storyData, mediaFile) => firebaseService.createStory(storyData, mediaFile),

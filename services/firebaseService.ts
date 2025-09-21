@@ -5,7 +5,9 @@ import {
     Message, Conversation, ChatSettings, LiveAudioRoom, 
     Listener, Speaker, LiveVideoRoom, VideoParticipantState, 
     Group, JoinRequest, Event, GroupChat, Story, Lead, 
-    AdminUser, Report, Call 
+    AdminUser, Report, Call, 
+    // FIX: Alias Notification to avoid conflict with browser's Notification API.
+    Notification as AppNotification
 } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '../constants';
 
@@ -517,9 +519,9 @@ export const firebaseService = {
     },
     
     // --- NOTIFICATIONS ---
-    listenToNotifications: (userId: string, callback: (notifications: Notification[]) => void): (() => void) => {
+    listenToNotifications: (userId: string, callback: (notifications: AppNotification[]) => void): (() => void) => {
         return db.collection('users').doc(userId).collection('notifications').orderBy('createdAt', 'desc').limit(20).onSnapshot(snapshot => {
-            const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppNotification));
             callback(notifications);
         });
     },
@@ -676,7 +678,41 @@ export const firebaseService = {
             allowLeadForm: validCampaign.allowLeadForm,
         };
     },
+    
+    listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void): (() => void) => {
+        return db.collection('liveAudioRooms').onSnapshot(snapshot => {
+            const rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LiveAudioRoom));
+            callback(rooms);
+        });
+    },
 
+    createLiveAudioRoom: async (host: User, topic: string): Promise<LiveAudioRoom | null> => {
+        try {
+            const initialSpeaker: Speaker = {
+                id: host.id,
+                name: host.name,
+                avatarUrl: host.avatarUrl,
+                isMuted: false,
+                isSpeaking: false,
+            };
+    
+            const newRoomData: Omit<LiveAudioRoom, 'id'> = {
+                topic,
+                host,
+                speakers: [initialSpeaker],
+                listeners: [],
+                raisedHands: [],
+                createdAt: new Date().toISOString(),
+            };
+    
+            const docRef = await db.collection('liveAudioRooms').add(newRoomData);
+            return { id: docRef.id, ...newRoomData };
+        } catch (error) {
+            console.error("Error creating live audio room:", error);
+            return null;
+        }
+    },
+    
     // Stubs for other missing functions
     getCommonFriends: async (userId1: string, userId2: string): Promise<User[]> => { return []; },
     getStories: async (userId: string): Promise<any[]> => { return []; },
@@ -684,10 +720,8 @@ export const firebaseService = {
     // Many other functions would go here...
     // The following are simplified placeholders for brevity.
     getExplorePosts: async (userId: string): Promise<Post[]> => { return []; },
-    listenToLiveAudioRooms: (cb) => (() => {}),
     listenToLiveVideoRooms: (cb) => (() => {}),
     listenToRoom: (id, type, cb) => (() => {}),
-    createLiveAudioRoom: async (host, topic) => null,
     createLiveVideoRoom: async (host, topic) => null,
     joinLiveAudioRoom: async (userId, roomId) => {},
     joinLiveVideoRoom: async (userId, roomId) => {},
