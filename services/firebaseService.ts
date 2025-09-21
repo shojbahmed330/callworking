@@ -1455,15 +1455,21 @@ listenToRoom(roomId: string, type: 'audio' | 'video', callback: (room: LiveAudio
         }
     });
 },
-async createLiveAudioRoom(host: User, topic: string): Promise<LiveAudioRoom> {
+// @FIX: Update createLiveAudioRoom to accept a `privacy` argument.
+async createLiveAudioRoom(host: User, topic: string, privacy: 'public' | 'private'): Promise<LiveAudioRoom> {
+    const hostInfo = { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl };
     const newRoomData = {
-        host: { id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl },
+        host: hostInfo,
         topic,
-        speakers: [{ id: host.id, name: host.name, username: host.username, avatarUrl: host.avatarUrl }],
+        speakers: [{ ...hostInfo, isMuted: false }],
         listeners: [],
+        moderatorIds: [],
         raisedHands: [],
         createdAt: serverTimestamp(),
         status: 'live',
+        privacy,
+        invitedUserIds: [],
+        kickedUserIds: []
     };
     const docRef = await db.collection('liveAudioRooms').add(newRoomData);
     const doc = await docRef.get();

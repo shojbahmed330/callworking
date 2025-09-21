@@ -191,7 +191,7 @@ export interface Conversation {
   unreadCount: number;
 }
 
-export type NotificationType = 'like' | 'comment' | 'friend_request' | 'friend_request_approved' | 'campaign_approved' | 'campaign_rejected' | 'group_post' | 'group_join_request' | 'group_request_approved' | 'admin_announcement' | 'admin_warning';
+export type NotificationType = 'like' | 'comment' | 'friend_request' | 'friend_request_approved' | 'campaign_approved' | 'campaign_rejected' | 'group_post' | 'group_join_request' | 'group_request_approved' | 'admin_announcement' | 'admin_warning' | 'room_invite';
 
 export interface Notification {
   id: string;
@@ -205,6 +205,8 @@ export interface Notification {
   groupId?: string;
   groupName?: string;
   message?: string; // For announcements and warnings
+  roomId?: string;
+  roomTopic?: string;
 }
 
 export type ChatTheme = 'default' | 'sunset' | 'ocean' | 'forest' | 'classic';
@@ -253,15 +255,31 @@ export interface LiveRoomMessage {
   createdAt: string; // ISO string
 }
 
+export interface AudioParticipantState extends User {
+    isMuted?: boolean;
+}
+
+export interface LiveRoomEvent {
+    id: string;
+    type: 'reaction';
+    emoji: string;
+    senderId: string;
+    createdAt: string; // ISO string
+}
+
 export interface LiveAudioRoom {
   id: string;
   host: User;
   topic: string;
-  speakers: User[];
+  speakers: AudioParticipantState[];
   listeners: User[];
+  moderatorIds: string[];
   raisedHands: string[]; // Array of user IDs
   createdAt: string;
   status: 'live' | 'ended';
+  privacy: 'public' | 'private';
+  invitedUserIds?: string[];
+  kickedUserIds?: string[];
 }
 
 export interface VideoParticipantState extends User {

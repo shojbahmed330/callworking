@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppView, LiveAudioRoom, User } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -11,15 +10,16 @@ interface RoomsListScreenProps {
 
 const CreateRoomModal: React.FC<{
     onClose: () => void;
-    onCreate: (topic: string) => Promise<void>;
+    onCreate: (topic: string, privacy: 'public' | 'private') => Promise<void>;
 }> = ({ onClose, onCreate }) => {
     const [topic, setTopic] = useState('');
+    const [privacy, setPrivacy] = useState<'public' | 'private'>('public');
     const [isCreating, setIsCreating] = useState(false);
 
     const handleCreate = async () => {
         if (!topic.trim()) return;
         setIsCreating(true);
-        await onCreate(topic);
+        await onCreate(topic, privacy);
         // The parent will handle closing the modal after navigation
     };
 
@@ -36,6 +36,25 @@ const CreateRoomModal: React.FC<{
                     className="w-full bg-slate-700 border border-slate-600 text-slate-100 rounded-lg p-3 focus:ring-lime-500 focus:border-lime-500"
                     autoFocus
                 />
+                <div className="mt-4">
+                    <label className="text-sm font-medium text-slate-300">Room Type</label>
+                    <div className="flex gap-4 mt-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="privacy" value="public" checked={privacy === 'public'} onChange={() => setPrivacy('public')} className="w-4 h-4 text-lime-600"/>
+                            <div>
+                                <p className="font-semibold text-slate-100">Public</p>
+                                <p className="text-xs text-slate-400">Anyone can join.</p>
+                            </div>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="privacy" value="private" checked={privacy === 'private'} onChange={() => setPrivacy('private')} className="w-4 h-4 text-lime-600"/>
+                             <div>
+                                <p className="font-semibold text-slate-100">Private</p>
+                                <p className="text-xs text-slate-400">Only invited people can join.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
                 <div className="mt-6 flex justify-end gap-3">
                     <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold">Cancel</button>
                     <button onClick={handleCreate} disabled={!topic.trim() || isCreating} className="px-4 py-2 rounded-lg bg-lime-600 hover:bg-lime-500 text-black font-bold disabled:bg-slate-500">
@@ -67,8 +86,8 @@ const RoomsListScreen: React.FC<RoomsListScreenProps> = ({ currentUser, onNaviga
     onNavigate(AppView.LIVE_ROOM, { roomId });
   };
 
-  const handleCreateRoom = async (topic: string) => {
-    const newRoom = await geminiService.createLiveAudioRoom(currentUser, topic);
+  const handleCreateRoom = async (topic: string, privacy: 'public' | 'private') => {
+    const newRoom = await geminiService.createLiveAudioRoom(currentUser, topic, privacy);
     if (newRoom) {
       setCreateModalOpen(false);
       onNavigate(AppView.LIVE_ROOM, { roomId: newRoom.id });
