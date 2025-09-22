@@ -301,7 +301,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 newReactions[msg.id] = {};
                 if(msg.reactions) {
                     Object.entries(msg.reactions).forEach(([emoji, users]) => {
-                        // FIX: Cast `users` to `string[]` to access the `length` property, as Object.entries infers the value as `unknown`.
                         newReactions[msg.id][emoji] = (users as string[]).length;
                     });
                 }
@@ -312,7 +311,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 if (msg.reactions) {
                     Object.entries(msg.reactions).forEach(([emoji, users]) => {
                         const prevCount = prevReactionsRef.current[msg.id]?.[emoji] || 0;
-                        // FIX: Cast `users` to `string[]` to access the `length` property, as Object.entries infers the value as `unknown`.
                         if ((users as string[]).length > prevCount) {
                             // A new reaction was added
                              setFloatingEmojis(prev => [...prev, { id: Date.now() + Math.random(), emoji }]);
@@ -471,13 +469,12 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         <h1 className="text-xl font-bold truncate">{room.topic}</h1>
                         <p className="text-sm text-slate-400">with {room.host.name}</p>
                     </div>
-                     <button onClick={handleLeave} className="bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold p-2.5 rounded-full md:px-4 md:py-2 md:rounded-lg md:bg-red-600 md:text-white flex items-center gap-1.5" aria-label="Leave Room">
-                        <span className="hidden md:inline">Leave</span>
+                     <button onClick={handleLeave} className="bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold p-2.5 rounded-full md:hidden" aria-label="Leave Room">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     </button>
                 </header>
                 
-                <main className="md:flex-grow overflow-y-auto p-6 space-y-8">
+                <main className="flex-grow overflow-y-auto p-6 space-y-8">
                     <section>
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
                         <div className="flex flex-wrap gap-6">
@@ -520,7 +517,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 </main>
 
                 {/* --- Integrated Chat View for MOBILE ONLY --- */}
-                <div className="flex flex-col flex-grow bg-slate-800/50 border-t border-slate-700 md:hidden">
+                <div className="md:hidden flex flex-col flex-shrink-0 h-[40vh] border-t border-slate-700 bg-slate-800/50">
                     <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
                         {showHeartAnimation && <HeartAnimation />}
                         {messages.map(msg => (
@@ -591,6 +588,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                             {hasRaisedHand ? 'Hand Raised ✋' : 'Raise Hand ✋'}
                         </button>
                     )}
+                     <button onClick={handleLeave} className="absolute right-4 bg-slate-700 hover:bg-slate-600 font-bold py-2 px-4 rounded-lg">
+                        Leave Quietly
+                    </button>
                 </footer>
             </div>
             
