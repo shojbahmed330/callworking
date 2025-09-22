@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Post, User, CategorizedExploreFeed, Comment } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -107,7 +106,8 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({
         );
     }
     
-    const isEmpty = !categorizedFeed || Object.values(categorizedFeed).every(arr => arr.length === 0);
+    // FIX: Cast `arr` to `any[]` to access the `length` property, as Object.values infers the value as `unknown`.
+    const isEmpty = !categorizedFeed || Object.values(categorizedFeed).every(arr => (arr as any[]).length === 0);
 
     if (isEmpty) {
         return (

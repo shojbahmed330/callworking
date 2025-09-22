@@ -22,7 +22,8 @@ const ReactionListModal: React.FC<ReactionListModalProps> = ({ isOpen, onClose, 
     return counts;
   }, [reactions]);
 
-  const reactionEntries = Object.entries(reactionCounts).filter(([, userIds]) => userIds && userIds.length > 0);
+  // FIX: Cast `userIds` to `string[]` to access the `length` property, as Object.entries infers the value as `unknown`.
+  const reactionEntries = Object.entries(reactionCounts).filter(([, userIds]) => userIds && (userIds as string[]).length > 0);
   
   const [activeTab, setActiveTab] = useState(reactionEntries[0]?.[0] || '');
   const [users, setUsers] = useState<User[]>([]);

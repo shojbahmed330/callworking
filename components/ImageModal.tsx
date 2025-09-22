@@ -135,7 +135,8 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     if (!post.reactions) return [];
     const counts: { [key: string]: number } = {};
     Object.values(post.reactions).forEach(emoji => {
-        counts[emoji] = (counts[emoji] || 0) + 1;
+        // FIX: Cast `emoji` to `string` to use it as an index type, as Object.values can infer it as `unknown`.
+        counts[emoji as string] = (counts[emoji as string] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
   }, [post.reactions]);

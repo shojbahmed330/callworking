@@ -106,8 +106,8 @@ const ChatMessage: React.FC<{
     const reactionSummary = useMemo(() => {
         if (!message.reactions || Object.keys(message.reactions).length === 0) return null;
         return Object.entries(message.reactions)
-            .filter(([, userIds]) => userIds.length > 0)
-            .map(([emoji, userIds]) => ({ emoji, count: userIds.length }))
+            .filter(([, userIds]) => (userIds as string[]).length > 0)
+            .map(([emoji, userIds]) => ({ emoji, count: (userIds as string[]).length }))
             .sort((a, b) => b.count - a.count);
     }, [message.reactions]);
 
@@ -190,7 +190,6 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     
     const [messages, setMessages] = useState<LiveAudioRoomMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [isChatOpen, setIsChatOpen] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
     const [activeTheme, setActiveTheme] = useState(CHAT_THEMES.default);
@@ -302,7 +301,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 newReactions[msg.id] = {};
                 if(msg.reactions) {
                     Object.entries(msg.reactions).forEach(([emoji, users]) => {
-                        newReactions[msg.id][emoji] = users.length;
+                        // FIX: Cast `users` to `string[]` to access the `length` property, as Object.entries infers the value as `unknown`.
+                        newReactions[msg.id][emoji] = (users as string[]).length;
                     });
                 }
             });
@@ -312,7 +312,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 if (msg.reactions) {
                     Object.entries(msg.reactions).forEach(([emoji, users]) => {
                         const prevCount = prevReactionsRef.current[msg.id]?.[emoji] || 0;
-                        if (users.length > prevCount) {
+                        // FIX: Cast `users` to `string[]` to access the `length` property, as Object.entries infers the value as `unknown`.
+                        if ((users as string[]).length > prevCount) {
                             // A new reaction was added
                              setFloatingEmojis(prev => [...prev, { id: Date.now() + Math.random(), emoji }]);
                         }
@@ -327,10 +328,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     }, [roomId]);
 
     useEffect(() => {
-        if (isChatOpen || window.innerWidth >= 768) {
-             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [messages, isChatOpen]);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
     
     useEffect(() => {
         if (!room || !agoraClient.current) return;
@@ -472,12 +471,13 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         <h1 className="text-xl font-bold truncate">{room.topic}</h1>
                         <p className="text-sm text-slate-400">with {room.host.name}</p>
                     </div>
-                    <button onClick={handleLeave} className="bg-red-600 hover:bg-red-500 font-bold py-2 px-4 rounded-lg">
-                        Leave
+                     <button onClick={handleLeave} className="bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold p-2.5 rounded-full md:px-4 md:py-2 md:rounded-lg md:bg-red-600 md:text-white flex items-center gap-1.5" aria-label="Leave Room">
+                        <span className="hidden md:inline">Leave</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     </button>
                 </header>
                 
-                <main className="flex-grow overflow-y-auto p-6 space-y-8">
+                <main className="md:flex-grow overflow-y-auto p-6 space-y-8">
                     <section>
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
                         <div className="flex flex-wrap gap-6">
@@ -518,20 +518,68 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                         </div>
                     </section>
                 </main>
-                
-                <footer className="relative flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-4">
+
+                {/* --- Integrated Chat View for MOBILE ONLY --- */}
+                <div className="flex flex-col flex-grow bg-slate-800/50 border-t border-slate-700 md:hidden">
+                    <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
+                        {showHeartAnimation && <HeartAnimation />}
+                        {messages.map(msg => (
+                            <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} onReact={handleReact} />
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </div>
+                    <footer className="relative p-2 flex-shrink-0 border-t border-slate-700 bg-black/30 z-10">
+                        {isEmojiPickerOpen && (
+                            <div className="absolute bottom-full left-0 right-0 p-2 bg-slate-900/95 backdrop-blur-sm rounded-t-lg border-t border-x border-slate-700 h-64 overflow-y-auto no-scrollbar">
+                                <div className="grid grid-cols-8 gap-2">
+                                    {EMOJI_LIST.map(emoji => (
+                                        <button key={emoji} type="button" onClick={() => setNewMessage(prev => prev + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700/50 transition-colors">
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                                {isListener && (
+                                    <button type="button" onClick={handleRaiseHand} disabled={hasRaisedHand} className="p-3 rounded-full bg-slate-600 disabled:bg-slate-700 disabled:text-slate-500">
+                                        <span className="text-xl">✋</span>
+                                    </button>
+                                )}
+                                {isSpeaker && (
+                                    <button type="button" onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600'}`}>
+                                        <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
+                                    </button>
+                                )}
+                            </div>
+                            <div className="relative flex-grow">
+                                <input
+                                    type="text"
+                                    value={newMessage}
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    onFocus={() => setEmojiPickerOpen(false)}
+                                    placeholder="Send a message..."
+                                    className="w-full bg-slate-700 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-lime-500"
+                                />
+                                <button type="button" onClick={() => setEmojiPickerOpen(p => !p)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-300 hover:text-white">
+                                    <Icon name="face-smile" className="w-5 h-5"/>
+                                </button>
+                            </div>
+                            <button type="submit" className="p-2.5 bg-lime-600 rounded-full text-black hover:bg-lime-500 transition-colors disabled:bg-slate-500" disabled={!newMessage.trim()}>
+                                <Icon name="paper-airplane" className="w-5 h-5" />
+                            </button>
+                        </form>
+                    </footer>
+                </div>
+
+                {/* --- Original Desktop Footer --- */}
+                <footer className="relative flex-shrink-0 p-4 bg-black/20 hidden md:flex justify-center items-center h-24 gap-4">
                      {floatingEmojis.map(emoji => (
                         <div key={emoji.id} className="floating-emoji text-4xl" onAnimationEnd={() => setFloatingEmojis(f => f.filter(item => item.id !== emoji.id))}>
                             {emoji.emoji}
                         </div>
                     ))}
-                    <button
-                        onClick={() => setIsChatOpen(true)}
-                        className="md:hidden bg-slate-600 p-3 rounded-full"
-                        aria-label="Open chat"
-                    >
-                        <Icon name="comment" className="w-6 h-6" />
-                    </button>
                     {isHost && <button onClick={handleEndRoom} className="bg-red-700 hover:bg-red-600 font-bold py-3 px-6 rounded-lg text-lg">End Room</button>}
                     {isSpeaker && (
                         <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
@@ -546,18 +594,11 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 </footer>
             </div>
             
-            <aside className={`w-full md:w-80 lg:w-96 flex-shrink-0 bg-gradient-to-br ${activeTheme.bgGradient} backdrop-blur-sm border-l border-slate-700/50 flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isChatOpen ? 'translate-x-0' : 'translate-x-full'} absolute top-0 right-0 h-full z-30`}>
+            {/* Desktop Chat Sidebar */}
+            <aside className={`w-80 lg:w-96 flex-shrink-0 bg-gradient-to-br ${activeTheme.bgGradient} backdrop-blur-sm border-l border-slate-700/50 hidden md:flex flex-col`}>
                  <BackgroundParticles />
                  <header className="p-4 flex-shrink-0 border-b border-white/10 flex justify-between items-center z-10">
                     <h2 className="font-bold text-lg">Room Chat</h2>
-                    <div className="flex items-center gap-2">
-                        <button className="p-2 rounded-full hover:bg-white/10" disabled>
-                            <Icon name="swatch" className="w-5 h-5 opacity-0"/>
-                        </button>
-                        <button onClick={() => setIsChatOpen(false)} className="md:hidden p-2 rounded-full hover:bg-white/10">
-                            <Icon name="close" className="w-5 h-5" />
-                        </button>
-                    </div>
                 </header>
                 <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
                     {showHeartAnimation && <HeartAnimation />}
