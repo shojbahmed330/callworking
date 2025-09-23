@@ -208,14 +208,14 @@ const UserApp: React.FC = () => {
     setViewStack(stack => [...stack, { view, props }]);
   }, []);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     setViewStack(stack => {
         if (stack.length > 1) {
             return stack.slice(0, -1);
         }
         return stack;
     });
-  };
+  }, []);
   
   const handleOpenConversation = useCallback(async (peer: User) => {
     if (!user) return;
