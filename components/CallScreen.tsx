@@ -23,6 +23,7 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
     const [isMicAvailable, setIsMicAvailable] = useState(true);
     const [isCamAvailable, setIsCamAvailable] = useState(true);
     const [callDuration, setCallDuration] = useState(0);
+    const [mediaAcquisitionFailed, setMediaAcquisitionFailed] = useState(false);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
@@ -127,6 +128,10 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
             agoraClient.current = client;
 
             client.on('user-published', async (user, mediaType) => {
+                if (client.connectionState !== 'CONNECTED') {
+                    console.warn('Agora client is not connected, skipping subscription for user:', user.uid);
+                    return;
+                }
                 await client.subscribe(user, mediaType);
                 setRemoteUser(user);
                 if (mediaType === 'video' && remoteVideoRef.current) {
@@ -152,40 +157,43 @@ const CallScreen: React.FC<CallScreenProps> = ({ currentUser, peerUser, callId, 
 
             // **Graceful Media Initialization**
             // Now, try to get local media, but catch errors if devices are not found.
-            try {
-                // @FIX: The original code passed an invalid constraints object to Agora.
-                // This has been refactored to create tracks conditionally based on the call type,
-                // which is the correct way to handle audio-only vs video calls.
-                const tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [];
-                
-                if (callType === 'video') {
-                    const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-                    localAudioTrack.current = audioTrack;
-                    localVideoTrack.current = videoTrack;
-                    setLocalVideoTrackState(videoTrack);
-                    tracksToPublish.push(audioTrack, videoTrack);
-                    if (localVideoRef.current) {
-                        videoTrack.play(localVideoRef.current);
-                    }
-                } else { // audio call
-                    const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-                    localAudioTrack.current = audioTrack;
-                    tracksToPublish.push(audioTrack);
-                }
+            if (!mediaAcquisitionFailed) {
+                try {
+                    // @FIX: The original code passed an invalid constraints object to Agora.
+                    // This has been refactored to create tracks conditionally based on the call type,
+                    // which is the correct way to handle audio-only vs video calls.
+                    const tracksToPublish: (IMicrophoneAudioTrack | ICameraVideoTrack)[] = [];
 
-                if (tracksToPublish.length > 0) {
-                    await client.publish(tracksToPublish);
+                    if (callType === 'video') {
+                        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                        localAudioTrack.current = audioTrack;
+                        localVideoTrack.current = videoTrack;
+                        setLocalVideoTrackState(videoTrack);
+                        tracksToPublish.push(audioTrack, videoTrack);
+                        if (localVideoRef.current) {
+                            videoTrack.play(localVideoRef.current);
+                        }
+                    } else { // audio call
+                        const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                        localAudioTrack.current = audioTrack;
+                        tracksToPublish.push(audioTrack);
+                    }
+
+                    if (tracksToPublish.length > 0) {
+                        await client.publish(tracksToPublish);
+                    }
+
+                } catch (error: any) {
+                    console.warn("Could not get local media tracks:", error);
+                    onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
+                    setMediaAcquisitionFailed(true);
+                    // Update UI to show devices are unavailable
+                    setIsMicAvailable(false);
+                    setIsCamAvailable(false);
+                    setIsMuted(true);
+                    setIsCameraOff(true);
+                    // The call continues in listen-only mode.
                 }
-                
-            } catch (error: any) {
-                 console.warn("Could not get local media tracks:", error);
-                 onSetTtsMessage("Your microphone or camera is not available. You can listen only.");
-                 // Update UI to show devices are unavailable
-                 setIsMicAvailable(false);
-                 setIsCamAvailable(false);
-                 setIsMuted(true);
-                 setIsCameraOff(true);
-                 // The call continues in listen-only mode.
             }
         };
 

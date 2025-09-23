@@ -92,6 +92,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+    const [mediaAcquisitionFailed, setMediaAcquisitionFailed] = useState(false);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
@@ -122,6 +123,10 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
         const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
+            if (client.connectionState !== 'CONNECTED') {
+                console.warn('Agora client is not connected, skipping subscription for user:', user.uid);
+                return;
+            }
             await client.subscribe(user, mediaType);
             if (mediaType === 'audio') user.audioTrack?.play();
             setRemoteUsers(Array.from(client.remoteUsers));
@@ -151,16 +156,19 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 await client.join(AGORA_APP_ID, roomId, token, uid);
 
                 // Try to get and publish tracks, but allow joining as a viewer if it fails.
-                try {
-                    const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-                    localAudioTrack.current = audioTrack;
-                    localVideoTrack.current = videoTrack;
-                    setLocalVideoTrackState(videoTrack);
-                    await client.publish([audioTrack, videoTrack]);
-                } catch (publishError: any) {
-                    console.error("Could not get or publish media tracks:", publishError);
-                    onSetTtsMessageRef.current("Could not find camera/mic. You are in viewer mode.");
-                    // Do not call onGoBack. Allow user to stay as a viewer.
+                if (!mediaAcquisitionFailed) {
+                    try {
+                        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                        localAudioTrack.current = audioTrack;
+                        localVideoTrack.current = videoTrack;
+                        setLocalVideoTrackState(videoTrack);
+                        await client.publish([audioTrack, videoTrack]);
+                    } catch (publishError: any) {
+                        console.error("Could not get or publish media tracks:", publishError);
+                        onSetTtsMessageRef.current("Could not find camera/mic. You are in viewer mode.");
+                        setMediaAcquisitionFailed(true);
+                        // Do not call onGoBack. Allow user to stay as a viewer.
+                    }
                 }
 
             } catch (error: any) {
