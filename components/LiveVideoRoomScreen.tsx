@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { LiveVideoRoom, User, VideoParticipantState } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
+import LiveChatDisplay, { LiveChatMessage } from './LiveChatDisplay';
 import { getTtsPrompt, AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
@@ -14,8 +15,6 @@ interface LiveVideoRoomScreenProps {
   onSetTtsMessage: (message: string) => void;
 }
 
-
-// Participant Video Component
 const ParticipantVideo: React.FC<{
     participant: VideoParticipantState;
     isLocal: boolean;
@@ -23,10 +22,10 @@ const ParticipantVideo: React.FC<{
     isSpeaking: boolean;
     localVideoTrack: ICameraVideoTrack | null;
     remoteUser: IAgoraRTCRemoteUser | undefined;
-}> = ({ participant, isLocal, isHost, isSpeaking, localVideoTrack, remoteUser }) => {
+    isFullScreen?: boolean;
+}> = ({ participant, isLocal, isHost, isSpeaking, localVideoTrack, remoteUser, isFullScreen = false }) => {
     const videoContainerRef = useRef<HTMLDivElement>(null);
 
-    // Effect to play video tracks
     useEffect(() => {
         const videoContainer = videoContainerRef.current;
         if (!videoContainer) return;
@@ -53,11 +52,12 @@ const ParticipantVideo: React.FC<{
     }, [isLocal, localVideoTrack, remoteUser, participant.isCameraOff]);
 
     const showVideo = (isLocal && localVideoTrack && !participant.isCameraOff) || (remoteUser?.hasVideo && !participant.isCameraOff);
+    const containerClasses = `relative bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center ${isFullScreen ? 'w-full h-full' : 'aspect-square'}`;
 
     return (
-        <div className="relative aspect-square bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center">
+        <div className={containerClasses}>
             {showVideo ? (
-                <div ref={videoContainerRef} className={`w-full h-full ${isLocal ? 'transform scale-x-[-1]' : ''}`} />
+                <div ref={videoContainerRef} className={`w-full h-full object-cover ${isLocal ? 'transform scale-x-[-1]' : ''}`} />
             ) : (
                 <>
                     <img src={participant.avatarUrl} alt={participant.name} className="w-full h-full object-cover opacity-30" />
@@ -84,7 +84,6 @@ const ParticipantVideo: React.FC<{
     );
 };
 
-// Main Component
 const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, roomId, onGoBack, onSetTtsMessage }) => {
     const [room, setRoom] = useState<LiveVideoRoom | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -96,10 +95,14 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const localVideoTrack = useRef<ICameraVideoTrack | null>(null);
-    const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null); // For re-rendering
+    const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null);
     const { language } = useSettings();
 
-    // Agora Lifecycle Management
+    const [messages, setMessages] = useState<LiveChatMessage[]>([
+        { id: '1', author: { id: 'a', name: 'Alice', avatarUrl: 'https://i.pravatar.cc/150?u=alice' }, text: 'Hello everyone! This is amazing!' },
+        { id: '2', author: { id: 'b', name: 'Bob', avatarUrl: 'https://i.pravatar.cc/150?u=bob' }, text: 'Hey Alice! Great to see you live. Looking sharp!' },
+    ]);
+
     useEffect(() => {
         if (!AGORA_APP_ID) {
             onSetTtsMessage("Agora App ID is not configured. Real-time video will not work.");
@@ -107,39 +110,21 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             onGoBack();
             return;
         }
-
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
         agoraClient.current = client;
-
         const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
             await client.subscribe(user, mediaType);
-            if (mediaType === 'audio') {
-                user.audioTrack?.play();
-            }
+            if (mediaType === 'audio') user.audioTrack?.play();
             setRemoteUsers(Array.from(client.remoteUsers));
         };
-
-        const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
-            setRemoteUsers(Array.from(client.remoteUsers));
-        };
-
-        const handleUserLeft = (user: IAgoraRTCRemoteUser) => {
-            setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
-        };
-        
+        const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => setRemoteUsers(Array.from(client.remoteUsers));
+        const handleUserLeft = (user: IAgoraRTCRemoteUser) => setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
         const handleVolumeIndicator = (volumes: any[]) => {
-            if (volumes.length === 0) {
-                setActiveSpeakerId(null);
-                return;
-            };
+            if (volumes.length === 0) { setActiveSpeakerId(null); return; };
             const mainSpeaker = volumes.reduce((max, current) => current.level > max.level ? current : max);
-            if (mainSpeaker.level > 5) { // Threshold to avoid flickering
-                setActiveSpeakerId(mainSpeaker.uid.toString());
-            } else {
-                setActiveSpeakerId(null);
-            }
+            if (mainSpeaker.level > 5) setActiveSpeakerId(mainSpeaker.uid.toString());
+            else setActiveSpeakerId(null);
         };
-
         const joinAndPublish = async () => {
             try {
                 client.on('user-published', handleUserPublished);
@@ -147,65 +132,60 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.on('user-left', handleUserLeft);
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
-
                 const token = await geminiService.getAgoraToken(roomId, currentUser.id);
-                if (!token) {
-                    throw new Error("Failed to retrieve Agora token. The video call cannot proceed.");
-                }
+                if (!token) throw new Error("Failed to retrieve Agora token.");
                 await client.join(AGORA_APP_ID, roomId, token, currentUser.id);
-
                 const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                 localAudioTrack.current = audioTrack;
                 localVideoTrack.current = videoTrack;
                 setLocalVideoTrackState(videoTrack);
-
                 await client.publish([audioTrack, videoTrack]);
             } catch (error: any) {
                 console.error("Agora failed to join or publish:", error);
-                if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError' || error.code === 'DEVICE_NOT_FOUND') {
-                    onSetTtsMessage("Could not find a microphone or camera. Please check your devices and permissions.");
-                } else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') {
-                    onSetTtsMessage("Microphone/camera access was denied. Please allow access in your browser settings.");
-                } else {
-                    onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
-                }
+                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') onSetTtsMessage("Could not find a microphone or camera.");
+                else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') onSetTtsMessage("Microphone/camera access was denied.");
+                else onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
                 onGoBack();
             }
         };
-
         geminiService.joinLiveVideoRoom(currentUser.id, roomId).then(joinAndPublish);
-
         return () => {
             client.off('user-published', handleUserPublished);
             client.off('user-unpublished', handleUserUnpublished);
             client.off('user-left', handleUserLeft);
             client.off('volume-indicator', handleVolumeIndicator);
-
-            localAudioTrack.current?.stop();
             localAudioTrack.current?.close();
-            localVideoTrack.current?.stop();
             localVideoTrack.current?.close();
-
             client.leave();
             geminiService.leaveLiveVideoRoom(currentUser.id, roomId);
         };
     }, [roomId, currentUser.id, onGoBack, onSetTtsMessage, language]);
-    
-    // Firestore real-time listener for Room Metadata
+
     useEffect(() => {
         setIsLoading(true);
         const unsubscribe = geminiService.listenToVideoRoom(roomId, (roomDetails) => {
-            if (roomDetails) {
-                setRoom(roomDetails);
-            } else {
-                onGoBack(); // Room has ended or doesn't exist
-            }
+            if (roomDetails) setRoom(roomDetails);
+            else onGoBack();
             setIsLoading(false);
         });
-
-        return () => unsubscribe(); // Cleanup subscription on unmount
+        return () => unsubscribe();
     }, [roomId, onGoBack]);
-    
+
+    useEffect(() => {
+        const botResponses = ['Wow, cool!', 'Loving this stream!', '🔥🔥🔥', 'Can you do a shout out?', 'Where are you from?', 'This is my first time here, looks great!'];
+        let messageIndex = 0;
+        const intervalId = setInterval(() => {
+            const botMessage: LiveChatMessage = {
+                id: new Date().toISOString() + '-bot',
+                author: { id: `bot-${messageIndex}`, name: 'BotUser', avatarUrl: `https://i.pravatar.cc/150?u=bot${messageIndex}` },
+                text: botResponses[messageIndex % botResponses.length],
+            };
+            setMessages(prev => [...prev, botMessage]);
+            messageIndex++;
+        }, 8000);
+        return () => clearInterval(intervalId);
+    }, []);
+
     const toggleMute = () => {
         if (!localAudioTrack.current) return;
         const muted = !isMuted;
@@ -219,71 +199,104 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         localVideoTrack.current.setEnabled(!cameraOff);
         setIsCameraOff(cameraOff);
     };
-    
+
+    const handleSendMessage = (text: string) => {
+        const newMessage: LiveChatMessage = {
+            id: new Date().toISOString(),
+            author: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl },
+            text,
+        };
+        setMessages(prevMessages => [...prevMessages, newMessage]);
+    };
+
     const remoteUsersMap = useMemo(() => {
         const map: Record<string, IAgoraRTCRemoteUser> = {};
-        remoteUsers.forEach(user => {
-            map[user.uid.toString()] = user;
-        });
+        remoteUsers.forEach(user => { map[user.uid.toString()] = user; });
         return map;
     }, [remoteUsers]);
-    
+
     if (isLoading || !room) {
         return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Video Room...</div>;
     }
-    
-    const allParticipants = [
-        ...room.participants,
-        { ...currentUser, isMuted, isCameraOff }
-    ];
-    
+
+    const allParticipants = [...room.participants, { ...currentUser, isMuted, isCameraOff }];
     const participantsMap = new Map<string, VideoParticipantState>();
     allParticipants.forEach(p => participantsMap.set(p.id, { ...p, isMuted: remoteUsersMap[p.id]?.audioTrack ? p.isMuted : true, isCameraOff: remoteUsersMap[p.id]?.videoTrack ? p.isCameraOff : true }));
     participantsMap.set(currentUser.id, { ...currentUser, isMuted, isCameraOff });
 
-    const participantsWithLocal = Array.from(participantsMap.values())
-        .sort((a, b) => {
-            if (a.id === room.host.id) return -1;
-            if (b.id === room.host.id) return 1;
-            if (a.id === currentUser.id) return -1;
-            if (b.id === currentUser.id) return 1;
-            return a.name.localeCompare(b.name);
-        });
-    
+    const participantsWithLocal = Array.from(participantsMap.values()).sort((a, b) => {
+        if (a.id === room.host.id) return -1;
+        if (b.id === room.host.id) return 1;
+        if (a.id === currentUser.id) return -1;
+        if (b.id === currentUser.id) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    const host = participantsWithLocal.find(p => p.id === room.host.id);
+    const otherParticipants = participantsWithLocal.filter(p => p.id !== room.host.id);
+
     return (
-        <div className="h-full w-full flex flex-col bg-slate-900 text-white">
-            <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
-                <div>
-                    <h1 className="text-xl font-bold truncate">{room.topic}</h1>
-                    <p className="text-sm text-slate-400">{participantsWithLocal.length} participant(s)</p>
-                </div>
-                <button onClick={onGoBack} className="bg-red-600 hover:bg-red-500 font-bold py-2 px-4 rounded-lg">
-                    Leave
-                </button>
-            </header>
-
-            <main className="flex-grow p-4 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-min overflow-y-auto">
-                {participantsWithLocal.map(p => (
+        <div className="h-full w-full relative bg-black text-white overflow-hidden">
+            {host && (
+                <div className="absolute inset-0 z-0">
                     <ParticipantVideo
-                        key={p.id}
-                        participant={p}
-                        isLocal={p.id === currentUser.id}
-                        isHost={p.id === room.host.id}
-                        isSpeaking={p.id === activeSpeakerId}
+                        key={host.id}
+                        participant={host}
+                        isLocal={host.id === currentUser.id}
+                        isHost={true}
+                        isSpeaking={host.id === activeSpeakerId}
                         localVideoTrack={localVideoTrackState}
-                        remoteUser={remoteUsersMap[p.id]}
+                        remoteUser={remoteUsersMap[host.id]}
+                        isFullScreen={true}
                     />
-                ))}
-            </main>
-
-            <footer className="flex-shrink-0 p-4 bg-black/20 flex justify-center items-center h-24 gap-6">
-                 <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
-                    <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
-                </button>
-                 <button onClick={toggleCamera} className={`p-4 rounded-full transition-colors ${isCameraOff ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
-                    <Icon name={isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-6 h-6" />
-                </button>
-            </footer>
+                </div>
+            )}
+            <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
+                <header className="p-4 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
+                    <div className="bg-black/30 p-2 rounded-lg">
+                        <h1 className="text-lg font-bold truncate">{room.topic}</h1>
+                        <p className="text-xs text-slate-300">{participantsWithLocal.length} watching</p>
+                    </div>
+                    <button onClick={onGoBack} className="bg-red-600/80 hover:bg-red-500 font-bold py-2 px-4 rounded-lg text-sm">
+                        Leave
+                    </button>
+                </header>
+                <main className="flex-grow flex flex-col justify-end p-4">
+                    <div className="flex justify-between items-end w-full">
+                        <div className="w-full max-w-sm lg:max-w-md h-[40vh] pointer-events-auto">
+                            <LiveChatDisplay messages={messages} currentUser={currentUser} onSendMessage={handleSendMessage} />
+                        </div>
+                        <div className="hidden md:flex flex-col gap-3 max-h-[60vh] overflow-y-auto pointer-events-auto">
+                            {otherParticipants.map(p => (
+                                 <div key={p.id} className="w-24 h-24 flex-shrink-0 rounded-lg shadow-lg">
+                                    <ParticipantVideo
+                                        participant={p}
+                                        isLocal={p.id === currentUser.id}
+                                        isHost={false}
+                                        isSpeaking={p.id === activeSpeakerId}
+                                        localVideoTrack={localVideoTrackState}
+                                        remoteUser={remoteUsersMap[p.id]}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </main>
+                <footer className="p-4 flex justify-center items-center gap-4 bg-gradient-to-t from-black/50 to-transparent pointer-events-auto">
+                    <button onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                        <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
+                    </button>
+                    <button onClick={toggleCamera} className={`p-3 rounded-full transition-colors ${isCameraOff ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                        <Icon name={isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-5 h-5" />
+                    </button>
+                    <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
+                        <Icon name="coin" className="w-5 h-5" />
+                    </button>
+                    <button className="p-3 rounded-full bg-pink-500/70 hover:bg-pink-400">
+                        <Icon name="like" className="w-5 h-5" />
+                    </button>
+                </footer>
+            </div>
         </div>
     );
 };
