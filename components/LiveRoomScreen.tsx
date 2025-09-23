@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { AppView, LiveAudioRoom, User, LiveAudioRoomMessage, ChatTheme } from '../types';
+import { AppView, LiveAudioRoom, User, LiveAudioRoomMessage } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
-import { AGORA_APP_ID, CHAT_THEMES } from '../constants';
+import { AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 
@@ -159,26 +159,6 @@ const ChatMessage: React.FC<{
     );
 };
 
-const BackgroundParticles: React.FC = () => (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {Array.from({ length: 20 }).map((_, i) => (
-            <div
-                key={i}
-                className="particle"
-                style={{
-                    '--size': `${Math.random() * 2 + 1}px`,
-                    '--x-start': `${Math.random() * 100}vw`,
-                    '--y-start': `${Math.random() * 100}vh`,
-                    '--x-end': `${Math.random() * 100}vw`,
-                    '--y-end': `${Math.random() * 100}vh`,
-                    '--duration': `${Math.random() * 20 + 15}s`,
-                    '--delay': `-${Math.random() * 20}s`,
-                } as React.CSSProperties}
-            />
-        ))}
-    </div>
-);
-
 
 const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, onNavigate, onGoBack, onSetTtsMessage }) => {
     const [room, setRoom] = useState<LiveAudioRoom | null>(null);
@@ -193,12 +173,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
-    const [activeTheme, setActiveTheme] = useState(CHAT_THEMES.default);
     const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
-    const [floatingEmojis, setFloatingEmojis] = useState<{ id: number; emoji: string; }[]>([]);
     const [showHeartAnimation, setShowHeartAnimation] = useState(false);
-    const prevReactionsRef = useRef<Record<string, Record<string, number>>>({});
-
 
     const onGoBackRef = useRef(onGoBack);
     const onSetTtsMessageRef = useRef(onSetTtsMessage);
@@ -296,33 +272,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     }, [roomId]);
 
     useEffect(() => {
-        const unsubscribe = geminiService.listenToLiveAudioRoomMessages(roomId, (newMessages) => {
-            const newReactions: Record<string, Record<string, number>> = {};
-            newMessages.forEach(msg => {
-                newReactions[msg.id] = {};
-                if(msg.reactions) {
-                    Object.entries(msg.reactions).forEach(([emoji, users]) => {
-                        newReactions[msg.id][emoji] = (users as string[]).length;
-                    });
-                }
-            });
-
-            // Compare with previous state to find new reactions
-            newMessages.forEach(msg => {
-                if (msg.reactions) {
-                    Object.entries(msg.reactions).forEach(([emoji, users]) => {
-                        const prevCount = prevReactionsRef.current[msg.id]?.[emoji] || 0;
-                        if ((users as string[]).length > prevCount) {
-                            // A new reaction was added
-                             setFloatingEmojis(prev => [...prev, { id: Date.now() + Math.random(), emoji }]);
-                        }
-                    });
-                }
-            });
-
-            prevReactionsRef.current = newReactions;
-            setMessages(newMessages);
-        });
+        const unsubscribe = geminiService.listenToLiveAudioRoomMessages(roomId, setMessages);
         return () => unsubscribe();
     }, [roomId]);
 
@@ -431,51 +381,33 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
     const activeAppSpeakerId = activeSpeakerId ? speakerIdMap.get(activeSpeakerId) : null;
 
     return (
-        <div className="h-full w-full flex flex-col md:flex-row bg-slate-900 text-white overflow-hidden">
+        <div className="h-full w-full flex flex-col bg-slate-900 text-white overflow-hidden">
              <style>{`
                 @keyframes fade-in-fast {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
                 .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
-                
-                @keyframes float-up {
-                    0% { transform: translateY(0) scale(0.5); opacity: 1; }
-                    100% { transform: translateY(-150px) scale(1.5); opacity: 0; }
-                }
-                .floating-emoji {
-                    position: absolute;
-                    bottom: 80px;
-                    left: 50%;
-                    animation: float-up 3s ease-out forwards;
-                    pointer-events: none;
-                }
-                @keyframes particle-anim {
-                    from { transform: translate3d(var(--x-start), var(--y-start), 0); opacity: 1; }
-                    to { transform: translate3d(var(--x-end), var(--y-end), 0); opacity: 0; }
-                }
-                .particle {
-                    position: absolute;
-                    background: white;
-                    border-radius: 50%;
-                    width: var(--size);
-                    height: var(--size);
-                    opacity: 0;
-                    animation: particle-anim var(--duration) var(--delay) linear infinite;
-                }
              `}</style>
-            <div className="flex-grow flex flex-col h-full overflow-hidden">
-                <header className="flex-shrink-0 p-4 flex items-center bg-black/20">
-                    <button onClick={onGoBack} className="p-2 rounded-full hover:bg-slate-700/50 mr-2" aria-label="Go Back">
-                        <Icon name="back" className="w-6 h-6" />
+             
+            <header className="flex-shrink-0 p-4 flex items-center bg-black/20 z-20">
+                <button onClick={onGoBack} className="p-2 rounded-full hover:bg-slate-700/50 mr-2" aria-label="Go Back">
+                    <Icon name="back" className="w-6 h-6" />
+                </button>
+                <div className="flex-grow">
+                    <h1 className="text-xl font-bold truncate">{room.topic}</h1>
+                    <p className="text-sm text-slate-400">with {room.host.name}</p>
+                </div>
+                {isHost && 
+                    <button onClick={handleEndRoom} className="bg-red-600 hover:bg-red-500 font-bold py-2 px-4 rounded-lg text-sm">
+                        End Room
                     </button>
-                    <div className="flex-grow">
-                        <h1 className="text-xl font-bold truncate">{room.topic}</h1>
-                        <p className="text-sm text-slate-400">with {room.host.name}</p>
-                    </div>
-                </header>
-                
-                <main className="flex-grow overflow-y-auto p-6 space-y-8">
+                }
+            </header>
+
+            <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+                {/* Main Content Area (Speakers, Listeners, etc.) */}
+                <main className="w-full md:flex-grow overflow-y-auto p-6 space-y-8">
                     <section>
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
                         <div className="flex flex-wrap gap-6">
@@ -488,20 +420,18 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                             ))}
                         </div>
                     </section>
-
-                    {isHost && raisedHandUsers.length > 0 && (
+                     {isHost && raisedHandUsers.length > 0 && (
                         <section>
                             <h2 className="text-lg font-semibold text-green-400 mb-4">Requests to Speak ({raisedHandUsers.length})</h2>
                             <div className="flex flex-wrap gap-6 bg-slate-800/50 p-4 rounded-lg">
                             {raisedHandUsers.map(user => (
                                     <Avatar key={user.id} user={user}>
-                                        <button onClick={() => handleInviteToSpeak(user.id)} className="text-xs bg-green-500 text-white px-2 py-1 rounded-md font-semibold">Invite to Speak</button>
+                                        <button onClick={() => handleInviteToSpeak(user.id)} className="text-xs bg-green-500 text-white px-2 py-1 rounded-md font-semibold">Invite</button>
                                     </Avatar>
                             ))}
                             </div>
                         </section>
                     )}
-
                     <section>
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Listeners ({room.listeners.length})</h2>
                         <div className="flex flex-wrap gap-4">
@@ -517,8 +447,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                     </section>
                 </main>
 
-                {/* --- Integrated Chat View for MOBILE ONLY --- */}
-                <div className="md:hidden flex flex-col flex-grow border-t border-slate-700 bg-slate-800/50">
+                {/* Chat Sidebar (Desktop) */}
+                <aside className="w-full md:w-80 lg:w-96 flex-shrink-0 bg-slate-800/50 border-t md:border-t-0 md:border-l border-slate-700/50 flex flex-col">
                     <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
                         {showHeartAnimation && <HeartAnimation />}
                         {messages.map(msg => (
@@ -569,75 +499,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                             </button>
                         </form>
                     </footer>
-                </div>
-
-                {/* --- Original Desktop Footer --- */}
-                <footer className="relative flex-shrink-0 p-4 bg-black/20 hidden md:flex justify-center items-center h-24 gap-4">
-                     {floatingEmojis.map(emoji => (
-                        <div key={emoji.id} className="floating-emoji text-4xl" onAnimationEnd={() => setFloatingEmojis(f => f.filter(item => item.id !== emoji.id))}>
-                            {emoji.emoji}
-                        </div>
-                    ))}
-                    {isHost && <button onClick={handleEndRoom} className="bg-red-700 hover:bg-red-600 font-bold py-3 px-6 rounded-lg text-lg">End Room</button>}
-                    {isSpeaker && (
-                        <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600 hover:bg-slate-500'}`}>
-                            <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-6 h-6" />
-                        </button>
-                    )}
-                    {isListener && (
-                        <button onClick={handleRaiseHand} disabled={hasRaisedHand} className="bg-lime-600 hover:bg-lime-500 font-bold py-3 px-6 rounded-lg text-lg disabled:bg-slate-500 disabled:cursor-not-allowed text-black">
-                            {hasRaisedHand ? 'Hand Raised ✋' : 'Raise Hand ✋'}
-                        </button>
-                    )}
-                     <button onClick={handleLeave} className="absolute right-4 bg-slate-700 hover:bg-slate-600 font-bold py-2 px-4 rounded-lg">
-                        Leave Quietly
-                    </button>
-                </footer>
+                </aside>
             </div>
-            
-            {/* Desktop Chat Sidebar */}
-            <aside className={`w-80 lg:w-96 flex-shrink-0 bg-gradient-to-br ${activeTheme.bgGradient} backdrop-blur-sm border-l border-slate-700/50 hidden md:flex flex-col`}>
-                 <BackgroundParticles />
-                 <header className="p-4 flex-shrink-0 border-b border-white/10 flex justify-between items-center z-10">
-                    <h2 className="font-bold text-lg">Room Chat</h2>
-                </header>
-                <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
-                    {showHeartAnimation && <HeartAnimation />}
-                    {messages.map(msg => (
-                        <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} onReact={handleReact} />
-                    ))}
-                    <div ref={messagesEndRef} />
-                </div>
-                <footer className="relative p-3 flex-shrink-0 border-t border-white/10 bg-black/20 z-10">
-                     {isEmojiPickerOpen && (
-                        <div className="absolute bottom-full left-0 right-0 p-2 bg-slate-900/95 backdrop-blur-sm rounded-t-lg border-t border-x border-slate-700 h-64 overflow-y-auto no-scrollbar">
-                            <div className="grid grid-cols-8 gap-2">
-                                {EMOJI_LIST.map(emoji => (
-                                    <button key={emoji} type="button" onClick={() => setNewMessage(prev => prev + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700/50 transition-colors">
-                                        {emoji}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                        <button type="button" onClick={() => setEmojiPickerOpen(p => !p)} className="p-2 rounded-full text-slate-300 hover:bg-slate-700/50">
-                            <Icon name="face-smile" className="w-6 h-6"/>
-                        </button>
-                        <input
-                            type="text"
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            onFocus={() => setEmojiPickerOpen(false)}
-                            placeholder="Send a message..."
-                            className="w-full bg-slate-800/70 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500"
-                        />
-                        <button type="submit" className="p-2.5 bg-lime-600 rounded-full text-black hover:bg-lime-500 transition-colors disabled:bg-slate-500" disabled={!newMessage.trim()}>
-                            <Icon name="paper-airplane" className="w-5 h-5" />
-                        </button>
-                    </form>
-                </footer>
-            </aside>
         </div>
     );
 };
