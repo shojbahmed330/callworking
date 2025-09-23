@@ -8,6 +8,19 @@ import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
 import { useSettings } from '../contexts/SettingsContext';
 
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  // Return a positive number within the valid UID range.
+  // The result of | 0 is a signed 32-bit integer. We make it positive
+  // and ensure it's not 0, as 0 is sometimes a reserved value.
+  return Math.abs(hash) || 1;
+}
+
 interface LiveVideoRoomScreenProps {
   currentUser: User;
   roomId: string;
@@ -169,11 +182,11 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.on('user-left', handleUserLeft);
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
-                const uid = parseInt(currentUser.id, 36) % 10000000;
+                const uid = simpleHash(currentUser.id);
                 const token = await geminiService.getAgoraToken(roomId, uid);
                 if (!token) throw new Error("Failed to retrieve Agora token.");
                 await client.join(AGORA_APP_ID, roomId, token, uid);
-
+                
                 try {
                     const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                     localAudioTrack.current = audioTrack;
@@ -216,7 +229,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         });
 
         const unsubscribeMessages = geminiService.listenToLiveVideoRoomMessages(roomId, setMessages);
-
+        
         const unsubscribeHearts = geminiService.listenToHeartAnimationEvents(roomId, () => {
             setShowHeartAnimation(true);
             setTimeout(() => setShowHeartAnimation(false), 2500);
@@ -262,7 +275,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
         // Add all participants from the room document
         room.participants.forEach(p => {
-            const agoraUid = (parseInt(p.id, 36) % 10000000).toString();
+            const agoraUid = simpleHash(p.id).toString();
             const remoteUser = remoteUsersMap[agoraUid];
             participantMap.set(p.id, {
                 ...p,
@@ -333,7 +346,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                         isHost={true}
                         isSpeaking={host.id === activeSpeakerId}
                         localVideoTrack={localVideoTrackState}
-                        remoteUser={remoteUsersMap[(parseInt(host.id, 36) % 10000000).toString()]}
+                        remoteUser={remoteUsersMap[simpleHash(host.id).toString()]}
                         isFullScreen={true}
                     />
                 </div>
@@ -362,7 +375,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                                         isHost={false}
                                         isSpeaking={p.id === activeSpeakerId}
                                         localVideoTrack={localVideoTrackState}
-                                        remoteUser={remoteUsersMap[(parseInt(p.id, 36) % 10000000).toString()]}
+                                        remoteUser={remoteUsersMap[simpleHash(p.id).toString()]}
                                     />
                                 </div>
                             ))}
