@@ -1666,19 +1666,59 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         }
     },
 
-    async muteParticipantInVideoRoom(roomId: string, participantId: string, isMuted: boolean): Promise<void> {
+    async setVideoRoomHost(roomId: string, newHost: User): Promise<void> {
         const roomRef = db.collection('liveVideoRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists) {
-            const participants = roomDoc.data()?.participants || [];
-            const updatedParticipants = participants.map((p: any) => {
-                if (p.id === participantId) {
-                    return { ...p, isMuted };
+        const newHostInfo = {
+            id: newHost.id,
+            name: newHost.name,
+            username: newHost.username,
+            avatarUrl: newHost.avatarUrl,
+        };
+        await roomRef.update({ host: newHostInfo });
+    },
+
+    async updateParticipantMediaState(roomId: string, participantId: string, state: { isMuted?: boolean; isCameraOff?: boolean }): Promise<void> {
+        const roomRef = db.collection('liveVideoRooms').doc(roomId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists) {
+                    throw "Room does not exist!";
                 }
-                return p;
+                const participants = roomDoc.data()?.participants || [];
+                const participantIndex = participants.findIndex((p: any) => p.id === participantId);
+
+                if (participantIndex !== -1) {
+                    const updatedParticipants = [...participants];
+                    updatedParticipants[participantIndex] = { ...updatedParticipants[participantIndex], ...state };
+                    transaction.update(roomRef, { participants: updatedParticipants });
+                }
             });
-            await roomRef.update({ participants: updatedParticipants });
+        } catch (error) {
+            console.error("Failed to update participant media state:", error);
         }
+    },
+
+    async sendHeartAnimationEvent(roomId: string) {
+        await db.collection('liveVideoRooms').doc(roomId).collection('events').add({
+            type: 'heart_animation',
+            createdAt: serverTimestamp(),
+        });
+    },
+
+    listenToHeartAnimationEvents(roomId: string, callback: () => void) {
+        const fiveSecondsAgo = Timestamp.fromMillis(Date.now() - 5000);
+        const q = db.collection('liveVideoRooms').doc(roomId).collection('events')
+            .where('createdAt', '>', fiveSecondsAgo)
+            .orderBy('createdAt', 'desc');
+
+        return q.onSnapshot(snapshot => {
+            snapshot.docChanges().forEach(change => {
+                if (change.type === 'added') {
+                    callback();
+                }
+            });
+        });
     },
 
     // --- Campaigns, Stories, Groups, Admin, etc. ---

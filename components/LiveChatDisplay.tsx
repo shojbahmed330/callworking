@@ -65,11 +65,8 @@ const LiveChatDisplay: React.FC<LiveChatDisplayProps> = ({ messages, currentUser
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Say something..."
-                        className="w-full bg-black/50 rounded-full py-2 pl-10 pr-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        className="w-full bg-black/50 rounded-full py-2 pl-4 pr-10 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
                     />
-                    <button type="button" onClick={() => setNewMessage(prev => prev + '❤️')} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-rose-400">
-                        <Icon name="face-smile" className="w-5 h-5" />
-                    </button>
                      <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-rose-400 disabled:opacity-50" disabled={!newMessage.trim()}>
                         <Icon name="paper-airplane" className="w-5 h-5" />
                     </button>

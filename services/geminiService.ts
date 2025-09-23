@@ -425,6 +425,10 @@ export const geminiService = {
     reactToLiveAudioRoomMessage: (roomId: string, messageId: string, userId: string, emoji: string) => firebaseService.reactToLiveAudioRoomMessage(roomId, messageId, userId, emoji),
     listenToLiveVideoRoomMessages: (roomId: string, callback: (messages: any[]) => void) => firebaseService.listenToLiveVideoRoomMessages(roomId, callback),
     sendLiveVideoRoomMessage: (roomId: string, sender: User, text: string) => firebaseService.sendLiveVideoRoomMessage(roomId, sender, text),
+    updateParticipantMediaState: (roomId: string, participantId: string, state: { isMuted?: boolean; isCameraOff?: boolean }) => firebaseService.updateParticipantMediaState(roomId, participantId, state),
+    sendHeartAnimationEvent: (roomId: string) => firebaseService.sendHeartAnimationEvent(roomId),
+    listenToHeartAnimationEvents: (roomId: string, callback: () => void) => firebaseService.listenToHeartAnimationEvents(roomId, callback),
+    setVideoRoomHost: (roomId: string, newHost: User) => firebaseService.setVideoRoomHost(roomId, newHost),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),

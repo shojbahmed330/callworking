@@ -217,9 +217,15 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
         const unsubscribeMessages = geminiService.listenToLiveVideoRoomMessages(roomId, setMessages);
 
+        const unsubscribeHearts = geminiService.listenToHeartAnimationEvents(roomId, () => {
+            setShowHeartAnimation(true);
+            setTimeout(() => setShowHeartAnimation(false), 2500);
+        });
+
         return () => {
             unsubscribeRoom();
             unsubscribeMessages();
+            unsubscribeHearts();
         };
     }, [roomId, onGoBack]);
 
@@ -228,6 +234,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         const muted = !isMuted;
         localAudioTrack.current.setMuted(muted);
         setIsMuted(muted);
+        geminiService.updateParticipantMediaState(roomId, currentUser.id, { isMuted: muted });
     };
 
     const toggleCamera = () => {
@@ -235,6 +242,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         const cameraOff = !isCameraOff;
         localVideoTrack.current.setEnabled(!cameraOff);
         setIsCameraOff(cameraOff);
+        geminiService.updateParticipantMediaState(roomId, currentUser.id, { isCameraOff: cameraOff });
     };
 
     const handleSendMessage = (text: string) => {
@@ -248,43 +256,67 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         return map;
     }, [remoteUsers]);
 
+    const participants = useMemo(() => {
+        if (!room) return [];
+        const participantMap = new Map<string, VideoParticipantState>();
+
+        // Add all participants from the room document
+        room.participants.forEach(p => {
+            const agoraUid = (parseInt(p.id, 36) % 10000000).toString();
+            const remoteUser = remoteUsersMap[agoraUid];
+            participantMap.set(p.id, {
+                ...p,
+                isMuted: !remoteUser?.hasAudio || p.isMuted,
+                isCameraOff: !remoteUser?.hasVideo || p.isCameraOff,
+            });
+        });
+
+        // Add or update the local user's state
+        participantMap.set(currentUser.id, {
+            ...(participantMap.get(currentUser.id) || currentUser),
+            isMuted,
+            isCameraOff,
+        });
+
+        return Array.from(participantMap.values()).sort((a, b) => {
+            if (a.id === room.host.id) return -1;
+            if (b.id === room.host.id) return 1;
+            if (a.id === currentUser.id) return -1;
+            if (b.id === currentUser.id) return 1;
+            return a.name.localeCompare(b.name);
+        });
+    }, [room, remoteUsersMap, currentUser, isMuted, isCameraOff]);
+
     if (isLoading || !room) {
         return <div className="h-full w-full flex items-center justify-center bg-slate-900 text-white">Loading Video Room...</div>;
     }
 
-    const allParticipants = [...room.participants, { ...currentUser, isMuted, isCameraOff }];
-    const participantsMap = new Map<string, VideoParticipantState>();
-    allParticipants.forEach(p => participantsMap.set(p.id, { ...p, isMuted: remoteUsersMap[p.id]?.audioTrack ? p.isMuted : true, isCameraOff: remoteUsersMap[p.id]?.videoTrack ? p.isCameraOff : true }));
-    participantsMap.set(currentUser.id, { ...currentUser, isMuted, isCameraOff });
-
-    const participantsWithLocal = Array.from(participantsMap.values()).sort((a, b) => {
-        if (a.id === room.host.id) return -1;
-        if (b.id === room.host.id) return 1;
-        if (a.id === currentUser.id) return -1;
-        if (b.id === currentUser.id) return 1;
-        return a.name.localeCompare(b.name);
-    });
-
-    const host = participantsWithLocal.find(p => p.id === room.host.id);
-    const otherParticipants = participantsWithLocal.filter(p => p.id !== room.host.id);
+    const host = participants.find(p => p.id === room.host.id);
+    const otherParticipants = participants.filter(p => p.id !== room.host.id);
 
     const handleLikeClick = () => {
-        setShowHeartAnimation(true);
-        setTimeout(() => setShowHeartAnimation(false), 2500);
+        geminiService.sendHeartAnimationEvent(roomId);
     };
 
     const handleMuteParticipant = (participantId: string) => {
-        const participant = participantsWithLocal.find(p => p.id === participantId);
+        const participant = participants.find(p => p.id === participantId);
         if (!participant) return;
-        // Note: This mutes for the database, Agora's remote mute is more complex
-        // and might require signaling. This implementation will rely on re-syncing state.
-        firebaseService.muteParticipantInVideoRoom(roomId, participantId, !participant.isMuted);
+        geminiService.muteParticipantInVideoRoom(roomId, participantId, !participant.isMuted);
         setMenuOpenFor(null);
     };
 
     const handleKickParticipant = (participantId: string) => {
         if (window.confirm("Are you sure you want to kick this user?")) {
-            firebaseService.kickParticipantFromVideoRoom(roomId, participantId);
+            geminiService.kickParticipantFromVideoRoom(roomId, participantId);
+        }
+        setMenuOpenFor(null);
+    };
+
+    const handleMakeHost = (participantId: string) => {
+        const participant = participants.find(p => p.id === participantId);
+        if (!participant) return;
+        if (window.confirm(`Are you sure you want to make ${participant.name} the new host?`)) {
+            geminiService.setVideoRoomHost(roomId, participant);
         }
         setMenuOpenFor(null);
     };
@@ -301,7 +333,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                         isHost={true}
                         isSpeaking={host.id === activeSpeakerId}
                         localVideoTrack={localVideoTrackState}
-                        remoteUser={remoteUsersMap[host.id]}
+                        remoteUser={remoteUsersMap[(parseInt(host.id, 36) % 10000000).toString()]}
                         isFullScreen={true}
                     />
                 </div>
@@ -310,7 +342,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 <header className="p-4 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
                     <div className="bg-black/30 p-2 rounded-lg">
                         <h1 className="text-lg font-bold truncate">{room.topic}</h1>
-                        <p className="text-xs text-slate-300">{participantsWithLocal.length} watching</p>
+                        <p className="text-xs text-slate-300">{participants.length} watching</p>
                     </div>
                     <button onClick={onGoBack} className="bg-red-600/80 hover:bg-red-500 font-bold py-2 px-4 rounded-lg text-sm">
                         Leave
@@ -330,7 +362,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                                         isHost={false}
                                         isSpeaking={p.id === activeSpeakerId}
                                         localVideoTrack={localVideoTrackState}
-                                        remoteUser={remoteUsersMap[p.id]}
+                                        remoteUser={remoteUsersMap[(parseInt(p.id, 36) % 10000000).toString()]}
                                     />
                                 </div>
                             ))}
@@ -353,11 +385,12 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             {menuOpenFor && (
                 <div
                     ref={menuRef}
-                    className="absolute bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 w-40 text-white animate-fade-in-fast"
+                    className="absolute bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 w-48 text-white animate-fade-in-fast"
                     style={{ top: menuOpenFor.y, left: menuOpenFor.x }}
                 >
                     <ul>
                         <li><button onClick={() => handleMuteParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Mute Participant</button></li>
+                        <li><button onClick={() => handleMakeHost(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Make Host</button></li>
                         <li><button onClick={() => handleKickParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 text-red-400 hover:bg-red-500/10">Kick from Room</button></li>
                     </ul>
                 </div>
