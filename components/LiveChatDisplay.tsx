@@ -19,6 +19,17 @@ interface LiveChatDisplayProps {
     onSendMessage: (text: string) => void;
 }
 
+const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+
+const isJumboEmoji = (text: string | undefined): boolean => {
+    if (!text) return false;
+    const trimmedText = text.trim();
+    const noEmojiText = trimmedText.replace(EMOJI_REGEX, '');
+    if (noEmojiText.trim().length > 0) return false;
+    const emojiCount = (trimmedText.match(EMOJI_REGEX) || []).length;
+    return emojiCount > 0 && emojiCount <= 2;
+}
+
 const LiveChatDisplay: React.FC<LiveChatDisplayProps> = ({ messages, currentUser, onSendMessage }) => {
     const [newMessage, setNewMessage] = useState('');
 
@@ -41,7 +52,7 @@ const LiveChatDisplay: React.FC<LiveChatDisplayProps> = ({ messages, currentUser
                                 <span className={`font-semibold ${msg.author.id === currentUser.id ? 'text-rose-400' : 'text-slate-300'}`}>
                                     {msg.author.name}
                                 </span>
-                                <p className="text-white break-words">{msg.text}</p>
+                                <p className={`text-white break-words ${isJumboEmoji(msg.text) ? 'jumbo-emoji' : ''}`}>{msg.text}</p>
                             </div>
                         </div>
                     ))}
@@ -54,8 +65,11 @@ const LiveChatDisplay: React.FC<LiveChatDisplayProps> = ({ messages, currentUser
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Say something..."
-                        className="w-full bg-black/50 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        className="w-full bg-black/50 rounded-full py-2 pl-10 pr-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
                     />
+                    <button type="button" onClick={() => setNewMessage(prev => prev + '❤️')} className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-rose-400">
+                        <Icon name="face-smile" className="w-5 h-5" />
+                    </button>
                      <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-rose-400 disabled:opacity-50" disabled={!newMessage.trim()}>
                         <Icon name="paper-airplane" className="w-5 h-5" />
                     </button>

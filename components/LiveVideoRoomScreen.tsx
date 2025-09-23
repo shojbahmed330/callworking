@@ -138,10 +138,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const [messages, setMessages] = useState<LiveChatMessage[]>([
-        { id: '1', author: { id: 'a', name: 'Alice', avatarUrl: 'https://i.pravatar.cc/150?u=alice' }, text: 'Hello everyone! This is amazing!' },
-        { id: '2', author: { id: 'b', name: 'Bob', avatarUrl: 'https://i.pravatar.cc/150?u=bob' }, text: 'Hey Alice! Great to see you live. Looking sharp!' },
-    ]);
+    const [messages, setMessages] = useState<LiveChatMessage[]>([]);
 
     useEffect(() => {
         if (!AGORA_APP_ID) {
@@ -212,28 +209,19 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
     useEffect(() => {
         setIsLoading(true);
-        const unsubscribe = geminiService.listenToVideoRoom(roomId, (roomDetails) => {
+        const unsubscribeRoom = geminiService.listenToVideoRoom(roomId, (roomDetails) => {
             if (roomDetails) setRoom(roomDetails);
             else onGoBack();
             setIsLoading(false);
         });
-        return () => unsubscribe();
-    }, [roomId, onGoBack]);
 
-    useEffect(() => {
-        const botResponses = ['Wow, cool!', 'Loving this stream!', '🔥🔥🔥', 'Can you do a shout out?', 'Where are you from?', 'This is my first time here, looks great!'];
-        let messageIndex = 0;
-        const intervalId = setInterval(() => {
-            const botMessage: LiveChatMessage = {
-                id: new Date().toISOString() + '-bot',
-                author: { id: `bot-${messageIndex}`, name: 'BotUser', avatarUrl: `https://i.pravatar.cc/150?u=bot${messageIndex}` },
-                text: botResponses[messageIndex % botResponses.length],
-            };
-            setMessages(prev => [...prev, botMessage]);
-            messageIndex++;
-        }, 8000);
-        return () => clearInterval(intervalId);
-    }, []);
+        const unsubscribeMessages = geminiService.listenToLiveVideoRoomMessages(roomId, setMessages);
+
+        return () => {
+            unsubscribeRoom();
+            unsubscribeMessages();
+        };
+    }, [roomId, onGoBack]);
 
     const toggleMute = () => {
         if (!localAudioTrack.current) return;
@@ -250,12 +238,8 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     };
 
     const handleSendMessage = (text: string) => {
-        const newMessage: LiveChatMessage = {
-            id: new Date().toISOString(),
-            author: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl },
-            text,
-        };
-        setMessages(prevMessages => [...prevMessages, newMessage]);
+        if (!text.trim()) return;
+        geminiService.sendLiveVideoRoomMessage(roomId, currentUser, text);
     };
 
     const remoteUsersMap = useMemo(() => {

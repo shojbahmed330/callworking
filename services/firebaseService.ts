@@ -1627,6 +1627,35 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
     }
 },
 
+    listenToLiveVideoRoomMessages(roomId: string, callback: (messages: any[]) => void) {
+        const q = db.collection('liveVideoRooms').doc(roomId).collection('messages').orderBy('createdAt', 'asc').limitToLast(50);
+        return q.onSnapshot(snapshot => {
+            const messages = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+                };
+            });
+            callback(messages);
+        });
+    },
+
+    async sendLiveVideoRoomMessage(roomId: string, sender: User, text: string) {
+        const messageData = {
+            author: {
+                id: sender.id,
+                name: sender.name,
+                avatarUrl: sender.avatarUrl,
+            },
+            text,
+            createdAt: serverTimestamp(),
+            reactions: {},
+        };
+        await db.collection('liveVideoRooms').doc(roomId).collection('messages').add(messageData);
+    },
+
     async kickParticipantFromVideoRoom(roomId: string, participantId: string): Promise<void> {
         const roomRef = db.collection('liveVideoRooms').doc(roomId);
         const roomDoc = await roomRef.get();
