@@ -136,16 +136,24 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 const token = await geminiService.getAgoraToken(roomId, uid);
                 if (!token) throw new Error("Failed to retrieve Agora token.");
                 await client.join(AGORA_APP_ID, roomId, token, uid);
-                const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-                localAudioTrack.current = audioTrack;
-                localVideoTrack.current = videoTrack;
-                setLocalVideoTrackState(videoTrack);
-                await client.publish([audioTrack, videoTrack]);
+
+                try {
+                    const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                    localAudioTrack.current = audioTrack;
+                    localVideoTrack.current = videoTrack;
+                    setLocalVideoTrackState(videoTrack);
+                    await client.publish([audioTrack, videoTrack]);
+                } catch (mediaError: any) {
+                    console.warn("Could not get local media tracks:", mediaError);
+                    onSetTtsMessage("Your microphone or camera is not available. You can listen and watch only.");
+                    setIsMuted(true);
+                    setIsCameraOff(true);
+                    // Do not call onGoBack(), allow user to stay in the room.
+                }
+
             } catch (error: any) {
-                console.error("Agora failed to join or publish:", error);
-                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') onSetTtsMessage("Could not find a microphone or camera.");
-                else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') onSetTtsMessage("Microphone/camera access was denied.");
-                else onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
+                console.error("Agora failed to join:", error);
+                onSetTtsMessage(`Could not join the video room: ${error.message || 'Unknown error'}`);
                 onGoBack();
             }
         };
