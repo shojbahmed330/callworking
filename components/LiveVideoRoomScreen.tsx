@@ -7,6 +7,7 @@ import { getTtsPrompt, AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
 import { useSettings } from '../contexts/SettingsContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 interface LiveVideoRoomScreenProps {
   currentUser: User;
@@ -98,6 +99,14 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null);
     const { language } = useSettings();
 
+    const onGoBackRef = useRef(onGoBack);
+    const onSetTtsMessageRef = useRef(onSetTtsMessage);
+
+    useEffect(() => {
+        onGoBackRef.current = onGoBack;
+        onSetTtsMessageRef.current = onSetTtsMessage;
+    });
+
     const [messages, setMessages] = useState<LiveChatMessage[]>([
         { id: '1', author: { id: 'a', name: 'Alice', avatarUrl: 'https://i.pravatar.cc/150?u=alice' }, text: 'Hello everyone! This is amazing!' },
         { id: '2', author: { id: 'b', name: 'Bob', avatarUrl: 'https://i.pravatar.cc/150?u=bob' }, text: 'Hey Alice! Great to see you live. Looking sharp!' },
@@ -105,9 +114,9 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
     useEffect(() => {
         if (!AGORA_APP_ID) {
-            onSetTtsMessage("Agora App ID is not configured. Real-time video will not work.");
+            onSetTtsMessageRef.current("Agora App ID is not configured. Real-time video will not work.");
             console.error("Agora App ID is not configured in constants.ts");
-            onGoBack();
+            onGoBackRef.current();
             return;
         }
         const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
@@ -146,10 +155,10 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 await client.publish([audioTrack, videoTrack]);
             } catch (error: any) {
                 console.error("Agora failed to join or publish:", error);
-                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') onSetTtsMessage("Could not find a microphone or camera.");
-                else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') onSetTtsMessage("Microphone/camera access was denied.");
-                else onSetTtsMessage(`Could not start the video room: ${error.message || 'Unknown error'}`);
-                onGoBack();
+                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') onSetTtsMessageRef.current("Could not find a microphone or camera.");
+                else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') onSetTtsMessageRef.current("Microphone/camera access was denied.");
+                else onSetTtsMessageRef.current(`Could not start the video room: ${error.message || 'Unknown error'}`);
+                onGoBackRef.current();
             }
         };
         geminiService.joinLiveVideoRoom(currentUser.id, roomId).then(joinAndPublish);
@@ -163,17 +172,17 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             client.leave();
             geminiService.leaveLiveVideoRoom(currentUser.id, roomId);
         };
-    }, [roomId, currentUser.id, onGoBack, onSetTtsMessage, language]);
+    }, [roomId, currentUser.id, language]);
 
     useEffect(() => {
         setIsLoading(true);
         const unsubscribe = geminiService.listenToVideoRoom(roomId, (roomDetails) => {
             if (roomDetails) setRoom(roomDetails);
-            else onGoBack();
+            else onGoBackRef.current();
             setIsLoading(false);
         });
         return () => unsubscribe();
-    }, [roomId, onGoBack]);
+    }, [roomId]);
 
     useEffect(() => {
         const botResponses = ['Wow, cool!', 'Loving this stream!', '🔥🔥🔥', 'Can you do a shout out?', 'Where are you from?', 'This is my first time here, looks great!'];
@@ -241,6 +250,25 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
     const host = participantsWithLocal.find(p => p.id === room.host.id);
     const otherParticipants = participantsWithLocal.filter(p => p.id !== room.host.id);
+    const isMobile = useMediaQuery('(max-width: 768px)');
+
+    const layoutProps = {
+        room,
+        host,
+        otherParticipants,
+        participantsWithLocal,
+        currentUser,
+        isMuted,
+        isCameraOff,
+        activeSpeakerId,
+        localVideoTrackState,
+        remoteUsersMap,
+        messages,
+        handleSendMessage,
+        toggleMute,
+        toggleCamera,
+        onGoBack,
+    };
 
     return (
         <div className="h-full w-full relative bg-black text-white overflow-hidden">
@@ -258,54 +286,109 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                     />
                 </div>
             )}
-            <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
-                <header className="p-4 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
-                    <div className="bg-black/30 p-2 rounded-lg">
-                        <h1 className="text-lg font-bold truncate">{room.topic}</h1>
-                        <p className="text-xs text-slate-300">{participantsWithLocal.length} watching</p>
-                    </div>
-                    <button onClick={onGoBack} className="bg-red-600/80 hover:bg-red-500 font-bold py-2 px-4 rounded-lg text-sm">
-                        Leave
-                    </button>
-                </header>
-                <main className="flex-grow flex flex-col justify-end p-4">
-                    <div className="flex justify-between items-end w-full">
-                        <div className="w-full max-w-sm lg:max-w-md h-[40vh] pointer-events-auto">
-                            <LiveChatDisplay messages={messages} currentUser={currentUser} onSendMessage={handleSendMessage} />
-                        </div>
-                        <div className="hidden md:flex flex-col gap-3 max-h-[60vh] overflow-y-auto pointer-events-auto">
-                            {otherParticipants.map(p => (
-                                 <div key={p.id} className="w-24 h-24 flex-shrink-0 rounded-lg shadow-lg">
-                                    <ParticipantVideo
-                                        participant={p}
-                                        isLocal={p.id === currentUser.id}
-                                        isHost={false}
-                                        isSpeaking={p.id === activeSpeakerId}
-                                        localVideoTrack={localVideoTrackState}
-                                         remoteUser={remoteUsersMap[(parseInt(p.id, 36) % 10000000).toString()]}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </main>
-                <footer className="p-4 flex justify-center items-center gap-4 bg-gradient-to-t from-black/50 to-transparent pointer-events-auto">
-                    <button onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
-                        <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
-                    </button>
-                    <button onClick={toggleCamera} className={`p-3 rounded-full transition-colors ${isCameraOff ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
-                        <Icon name={isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-5 h-5" />
-                    </button>
-                    <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
-                        <Icon name="coin" className="w-5 h-5" />
-                    </button>
-                    <button className="p-3 rounded-full bg-pink-500/70 hover:bg-pink-400">
-                        <Icon name="like" className="w-5 h-5" />
-                    </button>
-                </footer>
-            </div>
+            {isMobile ? <MobileLayout {...layoutProps} /> : <DesktopLayout {...layoutProps} />}
         </div>
     );
 };
+
+const DesktopLayout = (props) => (
+    <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
+        <header className="p-4 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
+            <div className="bg-black/30 p-2 rounded-lg">
+                <h1 className="text-lg font-bold truncate">{props.room.topic}</h1>
+                <p className="text-xs text-slate-300">{props.participantsWithLocal.length} watching</p>
+            </div>
+            <button onClick={props.onGoBack} className="bg-red-600/80 hover:bg-red-500 font-bold py-2 px-4 rounded-lg text-sm">
+                Leave
+            </button>
+        </header>
+        <main className="flex-grow flex flex-col justify-end p-4">
+            <div className="flex justify-between items-end w-full">
+                <div className="w-full max-w-sm lg:max-w-md h-[40vh] pointer-events-auto">
+                    <LiveChatDisplay messages={props.messages} currentUser={props.currentUser} onSendMessage={props.handleSendMessage} />
+                </div>
+                <div className="hidden md:flex flex-col gap-3 max-h-[60vh] overflow-y-auto pointer-events-auto">
+                    {props.otherParticipants.map(p => (
+                         <div key={p.id} className="w-24 h-24 flex-shrink-0 rounded-lg shadow-lg">
+                            <ParticipantVideo
+                                participant={p}
+                                isLocal={p.id === props.currentUser.id}
+                                isHost={false}
+                                isSpeaking={p.id === props.activeSpeakerId}
+                                localVideoTrack={props.localVideoTrackState}
+                                remoteUser={props.remoteUsersMap[(parseInt(p.id, 36) % 10000000).toString()]}
+                             />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </main>
+        <footer className="p-4 flex justify-center items-center gap-4 bg-gradient-to-t from-black/50 to-transparent pointer-events-auto">
+            <button onClick={props.toggleMute} className={`p-3 rounded-full transition-colors ${props.isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                <Icon name={props.isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
+            </button>
+            <button onClick={props.toggleCamera} className={`p-3 rounded-full transition-colors ${props.isCameraOff ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                <Icon name={props.isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-5 h-5" />
+            </button>
+            <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
+                <Icon name="coin" className="w-5 h-5" />
+            </button>
+            <button className="p-3 rounded-full bg-pink-500/70 hover:bg-pink-400">
+                <Icon name="like" className="w-5 h-5" />
+            </button>
+        </footer>
+    </div>
+);
+
+const MobileLayout = (props) => (
+    <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
+        <header className="p-2 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
+            <div className="bg-black/30 p-2 rounded-lg flex items-center gap-2">
+                <img src={props.host?.avatarUrl} alt={props.host?.name} className="w-8 h-8 rounded-full" />
+                <div>
+                    <h1 className="text-md font-bold truncate">{props.room.topic}</h1>
+                    <p className="text-xs text-slate-300">{props.participantsWithLocal.length} watching</p>
+                </div>
+            </div>
+            <button onClick={props.onGoBack} className="bg-red-600/80 hover:bg-red-500 font-bold p-2 rounded-full text-sm">
+                <Icon name="close" className="w-4 h-4" />
+            </button>
+        </header>
+
+        <div className="flex-grow" />
+
+        <main className="w-full p-2 flex flex-col gap-2 pointer-events-auto">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                 {props.otherParticipants.map(p => (
+                     <div key={p.id} className="w-16 h-16 flex-shrink-0 rounded-lg shadow-lg">
+                        <ParticipantVideo
+                            participant={p}
+                            isLocal={p.id === props.currentUser.id}
+                            isHost={false}
+                            isSpeaking={p.id === props.activeSpeakerId}
+                            localVideoTrack={props.localVideoTrackState}
+                            remoteUser={props.remoteUsersMap[(parseInt(p.id, 36) % 10000000).toString()]}
+                         />
+                    </div>
+                ))}
+            </div>
+             <div className="h-48">
+                <LiveChatDisplay messages={props.messages} currentUser={props.currentUser} onSendMessage={props.handleSendMessage} />
+            </div>
+        </main>
+
+        <footer className="p-2 flex justify-end items-center gap-2 pointer-events-auto">
+            <button onClick={props.toggleMute} className={`p-3 rounded-full transition-colors ${props.isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                <Icon name={props.isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
+            </button>
+            <button onClick={props.toggleCamera} className={`p-3 rounded-full transition-colors ${props.isCameraOff ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                <Icon name={props.isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-5 h-5" />
+            </button>
+             <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
+                <Icon name="coin" className="w-5 h-5" />
+            </button>
+        </footer>
+    </div>
+);
 
 export default LiveVideoRoomScreen;
