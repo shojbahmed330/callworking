@@ -84,6 +84,25 @@ const ParticipantVideo: React.FC<{
     );
 };
 
+const HeartAnimation = () => (
+    <div className="absolute inset-0 pointer-events-none z-50">
+        {Array.from({ length: 10 }).map((_, i) => (
+            <div
+                key={i}
+                className="absolute bottom-0"
+                style={{
+                    left: `${Math.random() * 80 + 10}%`,
+                    animation: `float-heart 2.5s ease-out forwards`,
+                    animationDelay: `${Math.random() * 1.5}s`,
+                    fontSize: `${Math.random() * 1.5 + 1}rem`,
+                }}
+            >
+                ❤️
+            </div>
+        ))}
+    </div>
+  );
+
 const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, roomId, onGoBack, onSetTtsMessage }) => {
     const [room, setRoom] = useState<LiveVideoRoom | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -91,12 +110,33 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+    const [showHeartAnimation, setShowHeartAnimation] = useState(false);
+    const [menuOpenFor, setMenuOpenFor] = useState<{ participantId: string; x: number; y: number } | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     const agoraClient = useRef<IAgoraRTCClient | null>(null);
     const localAudioTrack = useRef<IMicrophoneAudioTrack | null>(null);
     const localVideoTrack = useRef<ICameraVideoTrack | null>(null);
     const [localVideoTrackState, setLocalVideoTrackState] = useState<ICameraVideoTrack | null>(null);
     const { language } = useSettings();
+
+    const handleParticipantClick = (participantId: string, event: React.MouseEvent) => {
+        if (currentUser.id !== room?.host.id || currentUser.id === participantId) {
+            return;
+        }
+        event.stopPropagation();
+        setMenuOpenFor({ participantId, x: event.clientX, y: event.clientY });
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setMenuOpenFor(null);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const [messages, setMessages] = useState<LiveChatMessage[]>([
         { id: '1', author: { id: 'a', name: 'Alice', avatarUrl: 'https://i.pravatar.cc/150?u=alice' }, text: 'Hello everyone! This is amazing!' },
@@ -244,8 +284,30 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const host = participantsWithLocal.find(p => p.id === room.host.id);
     const otherParticipants = participantsWithLocal.filter(p => p.id !== room.host.id);
 
+    const handleLikeClick = () => {
+        setShowHeartAnimation(true);
+        setTimeout(() => setShowHeartAnimation(false), 2500);
+    };
+
+    const handleMuteParticipant = (participantId: string) => {
+        const participant = participantsWithLocal.find(p => p.id === participantId);
+        if (!participant) return;
+        // Note: This mutes for the database, Agora's remote mute is more complex
+        // and might require signaling. This implementation will rely on re-syncing state.
+        firebaseService.muteParticipantInVideoRoom(roomId, participantId, !participant.isMuted);
+        setMenuOpenFor(null);
+    };
+
+    const handleKickParticipant = (participantId: string) => {
+        if (window.confirm("Are you sure you want to kick this user?")) {
+            firebaseService.kickParticipantFromVideoRoom(roomId, participantId);
+        }
+        setMenuOpenFor(null);
+    };
+
     return (
         <div className="h-full w-full relative bg-black text-white overflow-hidden">
+            {showHeartAnimation && <HeartAnimation />}
             {host && (
                 <div className="absolute inset-0 z-0">
                     <ParticipantVideo
@@ -277,7 +339,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                         </div>
                         <div className="hidden md:flex flex-col gap-3 max-h-[60vh] overflow-y-auto pointer-events-auto">
                             {otherParticipants.map(p => (
-                                 <div key={p.id} className="w-24 h-24 flex-shrink-0 rounded-lg shadow-lg">
+                                 <div key={p.id} onClick={(e) => handleParticipantClick(p.id, e)} className="w-24 h-24 flex-shrink-0 rounded-lg shadow-lg cursor-pointer">
                                     <ParticipantVideo
                                         participant={p}
                                         isLocal={p.id === currentUser.id}
@@ -292,20 +354,30 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                     </div>
                 </main>
                 <footer className="p-4 flex justify-center items-center gap-4 bg-gradient-to-t from-black/50 to-transparent pointer-events-auto">
-                    <button onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                    <button onClick={toggleMute} disabled={!localAudioTrack.current} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'} disabled:bg-slate-700/50 disabled:cursor-not-allowed`}>
                         <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
                     </button>
-                    <button onClick={toggleCamera} className={`p-3 rounded-full transition-colors ${isCameraOff ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'}`}>
+                    <button onClick={toggleCamera} disabled={!localVideoTrack.current} className={`p-3 rounded-full transition-colors ${isCameraOff ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'} disabled:bg-slate-700/50 disabled:cursor-not-allowed`}>
                         <Icon name={isCameraOff ? 'video-camera-slash' : 'video-camera'} className="w-5 h-5" />
                     </button>
-                    <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
-                        <Icon name="coin" className="w-5 h-5" />
-                    </button>
-                    <button className="p-3 rounded-full bg-pink-500/70 hover:bg-pink-400">
+                    <button onClick={handleLikeClick} className="p-3 rounded-full bg-pink-500/70 hover:bg-pink-400">
                         <Icon name="like" className="w-5 h-5" />
                     </button>
                 </footer>
             </div>
+
+            {menuOpenFor && (
+                <div
+                    ref={menuRef}
+                    className="absolute bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 w-40 text-white animate-fade-in-fast"
+                    style={{ top: menuOpenFor.y, left: menuOpenFor.x }}
+                >
+                    <ul>
+                        <li><button onClick={() => handleMuteParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Mute Participant</button></li>
+                        <li><button onClick={() => handleKickParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 text-red-400 hover:bg-red-500/10">Kick from Room</button></li>
+                    </ul>
+                </div>
+            )}
         </div>
     );
 };

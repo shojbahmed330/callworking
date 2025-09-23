@@ -1627,6 +1627,31 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
     }
 },
 
+    async kickParticipantFromVideoRoom(roomId: string, participantId: string): Promise<void> {
+        const roomRef = db.collection('liveVideoRooms').doc(roomId);
+        const roomDoc = await roomRef.get();
+        if (roomDoc.exists) {
+            const participants = roomDoc.data()?.participants || [];
+            const updatedParticipants = participants.filter((p: any) => p.id !== participantId);
+            await roomRef.update({ participants: updatedParticipants });
+        }
+    },
+
+    async muteParticipantInVideoRoom(roomId: string, participantId: string, isMuted: boolean): Promise<void> {
+        const roomRef = db.collection('liveVideoRooms').doc(roomId);
+        const roomDoc = await roomRef.get();
+        if (roomDoc.exists) {
+            const participants = roomDoc.data()?.participants || [];
+            const updatedParticipants = participants.map((p: any) => {
+                if (p.id === participantId) {
+                    return { ...p, isMuted };
+                }
+                return p;
+            });
+            await roomRef.update({ participants: updatedParticipants });
+        }
+    },
+
     // --- Campaigns, Stories, Groups, Admin, etc. ---
     async getCampaignsForSponsor(sponsorId: string): Promise<Campaign[]> {
         const q = db.collection('campaigns').where('sponsorId', '==', sponsorId).orderBy('createdAt', 'desc');
