@@ -8,6 +8,7 @@ import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack } from
 
 const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '🎉', '🔥', '🙏'];
 const EMOJI_LIST = [
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❤️‍🔥', '❤️‍🩹', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟',
   '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
   '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
   '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
@@ -464,14 +465,14 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 }
              `}</style>
             <div className="flex-grow flex flex-col h-full overflow-hidden">
-                <header className="flex-shrink-0 p-4 flex justify-between items-center bg-black/20">
-                    <div>
+                <header className="flex-shrink-0 p-4 flex items-center bg-black/20">
+                    <button onClick={onGoBack} className="p-2 rounded-full hover:bg-slate-700/50 mr-2" aria-label="Go Back">
+                        <Icon name="back" className="w-6 h-6" />
+                    </button>
+                    <div className="flex-grow">
                         <h1 className="text-xl font-bold truncate">{room.topic}</h1>
                         <p className="text-sm text-slate-400">with {room.host.name}</p>
                     </div>
-                     <button onClick={handleLeave} className="bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold p-2.5 rounded-full md:hidden" aria-label="Leave Room">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                    </button>
                 </header>
                 
                 <main className="flex-grow overflow-y-auto p-6 space-y-8">
@@ -517,7 +518,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 </main>
 
                 {/* --- Integrated Chat View for MOBILE ONLY --- */}
-                <div className="md:hidden flex flex-col flex-shrink-0 h-[40vh] border-t border-slate-700 bg-slate-800/50">
+                <div className="md:hidden flex flex-col flex-grow border-t border-slate-700 bg-slate-800/50">
                     <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
                         {showHeartAnimation && <HeartAnimation />}
                         {messages.map(msg => (
