@@ -382,15 +382,7 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
 
     return (
         <div className="h-full w-full flex flex-col bg-slate-900 text-white overflow-hidden">
-             <style>{`
-                @keyframes fade-in-fast {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
-             `}</style>
-             
-            <header className="flex-shrink-0 p-4 flex items-center bg-black/20 z-20">
+             <header className="flex-shrink-0 p-4 flex items-center bg-black/20 z-20 border-b border-fuchsia-500/10">
                 <button onClick={onGoBack} className="p-2 rounded-full hover:bg-slate-700/50 mr-2" aria-label="Go Back">
                     <Icon name="back" className="w-6 h-6" />
                 </button>
@@ -405,10 +397,9 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                 }
             </header>
 
-            <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
-                {/* Main Content Area (Speakers, Listeners, etc.) */}
-                <main className="w-full md:flex-grow overflow-y-auto p-6 space-y-8">
-                    <section>
+            <div className="flex-grow flex flex-col overflow-hidden">
+                <div className="flex-shrink-0 overflow-y-auto p-6 space-y-6 max-h-[40vh] md:max-h-[35vh] no-scrollbar">
+                     <section>
                         <h2 className="text-lg font-semibold text-slate-300 mb-4">Speakers ({room.speakers.length})</h2>
                         <div className="flex flex-wrap gap-6">
                             {room.speakers.map(speaker => (
@@ -445,62 +436,60 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
                             ))}
                         </div>
                     </section>
-                </main>
+                </div>
 
-                {/* Chat Sidebar (Desktop) */}
-                <aside className="w-full md:w-80 lg:w-96 flex-shrink-0 bg-slate-800/50 border-t md:border-t-0 md:border-l border-slate-700/50 flex flex-col">
-                    <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
-                        {showHeartAnimation && <HeartAnimation />}
-                        {messages.map(msg => (
-                            <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} onReact={handleReact} />
-                        ))}
-                        <div ref={messagesEndRef} />
-                    </div>
-                    <footer className="relative p-2 flex-shrink-0 border-t border-slate-700 bg-black/30 z-10">
-                        {isEmojiPickerOpen && (
-                            <div className="absolute bottom-full left-0 right-0 p-2 bg-slate-900/95 backdrop-blur-sm rounded-t-lg border-t border-x border-slate-700 h-64 overflow-y-auto no-scrollbar">
-                                <div className="grid grid-cols-8 gap-2">
-                                    {EMOJI_LIST.map(emoji => (
-                                        <button key={emoji} type="button" onClick={() => setNewMessage(prev => prev + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700/50 transition-colors">
-                                            {emoji}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                            <div className="flex items-center gap-1">
-                                {isListener && (
-                                    <button type="button" onClick={handleRaiseHand} disabled={hasRaisedHand} className="p-3 rounded-full bg-slate-600 disabled:bg-slate-700 disabled:text-slate-500">
-                                        <span className="text-xl">✋</span>
-                                    </button>
-                                )}
-                                {isSpeaker && (
-                                    <button type="button" onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600'}`}>
-                                        <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
-                                    </button>
-                                )}
-                            </div>
-                            <div className="relative flex-grow">
-                                <input
-                                    type="text"
-                                    value={newMessage}
-                                    onChange={(e) => setNewMessage(e.target.value)}
-                                    onFocus={() => setEmojiPickerOpen(false)}
-                                    placeholder="Send a message..."
-                                    className="w-full bg-slate-700 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-lime-500"
-                                />
-                                <button type="button" onClick={() => setEmojiPickerOpen(p => !p)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-300 hover:text-white">
-                                    <Icon name="face-smile" className="w-5 h-5"/>
-                                </button>
-                            </div>
-                            <button type="submit" className="p-2.5 bg-lime-600 rounded-full text-black hover:bg-lime-500 transition-colors disabled:bg-slate-500" disabled={!newMessage.trim()}>
-                                <Icon name="paper-airplane" className="w-5 h-5" />
-                            </button>
-                        </form>
-                    </footer>
-                </aside>
+                <div className="relative flex-grow p-4 overflow-y-auto space-y-4 z-10">
+                    {showHeartAnimation && <HeartAnimation />}
+                    {messages.map(msg => (
+                        <ChatMessage key={msg.id} message={msg} activeSpeakerId={activeAppSpeakerId} isMe={msg.sender.id === currentUser.id} onReact={handleReact} />
+                    ))}
+                    <div ref={messagesEndRef} />
+                </div>
             </div>
+            
+            <footer className="relative p-2 flex-shrink-0 border-t border-slate-700 bg-black/30 z-10">
+                {isEmojiPickerOpen && (
+                    <div className="absolute bottom-full left-0 right-0 p-2 bg-slate-900/95 backdrop-blur-sm rounded-t-lg border-t border-x border-slate-700 h-64 overflow-y-auto no-scrollbar">
+                        <div className="grid grid-cols-8 gap-2">
+                            {EMOJI_LIST.map(emoji => (
+                                <button key={emoji} type="button" onClick={() => setNewMessage(prev => prev + emoji)} className="text-2xl p-1 rounded-md hover:bg-slate-700/50 transition-colors">
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                        {isListener && (
+                            <button type="button" onClick={handleRaiseHand} disabled={hasRaisedHand} className="p-3 rounded-full bg-slate-600 disabled:bg-slate-700 disabled:text-slate-500">
+                                <span className="text-xl">✋</span>
+                            </button>
+                        )}
+                        {isSpeaker && (
+                            <button type="button" onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-600' : 'bg-slate-600'}`}>
+                                <Icon name={isMuted ? 'microphone-slash' : 'mic'} className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
+                    <div className="relative flex-grow">
+                        <input
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onFocus={() => setEmojiPickerOpen(false)}
+                            placeholder="Send a message..."
+                            className="w-full bg-slate-700 border border-slate-600 rounded-full py-2 px-4 text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-lime-500"
+                        />
+                        <button type="button" onClick={() => setEmojiPickerOpen(p => !p)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-300 hover:text-white">
+                            <Icon name="face-smile" className="w-5 h-5"/>
+                        </button>
+                    </div>
+                    <button type="submit" className="p-2.5 bg-lime-600 rounded-full text-black hover:bg-lime-500 transition-colors disabled:bg-slate-500" disabled={!newMessage.trim()}>
+                        <Icon name="paper-airplane" className="w-5 h-5" />
+                    </button>
+                </form>
+            </footer>
         </div>
     );
 };
