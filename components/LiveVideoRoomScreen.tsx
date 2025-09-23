@@ -132,9 +132,13 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 client.on('user-left', handleUserLeft);
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
-                const token = await geminiService.getAgoraToken(roomId, currentUser.id);
+
+                // Convert string UID to integer UID for Agora
+                const uid = parseInt(currentUser.id, 36) % 10000000;
+
+                const token = await geminiService.getAgoraToken(roomId, uid);
                 if (!token) throw new Error("Failed to retrieve Agora token.");
-                await client.join(AGORA_APP_ID, roomId, token, currentUser.id);
+                await client.join(AGORA_APP_ID, roomId, token, uid);
                 const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                 localAudioTrack.current = audioTrack;
                 localVideoTrack.current = videoTrack;
@@ -221,7 +225,10 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
     const allParticipants = [...room.participants, { ...currentUser, isMuted, isCameraOff }];
     const participantsMap = new Map<string, VideoParticipantState>();
-    allParticipants.forEach(p => participantsMap.set(p.id, { ...p, isMuted: remoteUsersMap[p.id]?.audioTrack ? p.isMuted : true, isCameraOff: remoteUsersMap[p.id]?.videoTrack ? p.isCameraOff : true }));
+    allParticipants.forEach(p => {
+        const integerUid = (parseInt(p.id, 36) % 10000000).toString();
+        participantsMap.set(p.id, { ...p, isMuted: remoteUsersMap[integerUid]?.audioTrack ? p.isMuted : true, isCameraOff: remoteUsersMap[integerUid]?.videoTrack ? p.isCameraOff : true });
+    });
     participantsMap.set(currentUser.id, { ...currentUser, isMuted, isCameraOff });
 
     const participantsWithLocal = Array.from(participantsMap.values()).sort((a, b) => {
@@ -246,7 +253,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                         isHost={true}
                         isSpeaking={host.id === activeSpeakerId}
                         localVideoTrack={localVideoTrackState}
-                        remoteUser={remoteUsersMap[host.id]}
+                        remoteUser={remoteUsersMap[(parseInt(host.id, 36) % 10000000).toString()]}
                         isFullScreen={true}
                     />
                 </div>
@@ -275,7 +282,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                                         isHost={false}
                                         isSpeaking={p.id === activeSpeakerId}
                                         localVideoTrack={localVideoTrackState}
-                                        remoteUser={remoteUsersMap[p.id]}
+                                         remoteUser={remoteUsersMap[(parseInt(p.id, 36) % 10000000).toString()]}
                                     />
                                 </div>
                             ))}
