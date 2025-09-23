@@ -146,18 +146,26 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 const uid = parseInt(currentUser.id, 36) % 10000000;
 
                 const token = await geminiService.getAgoraToken(roomId, uid);
-                if (!token) throw new Error("Failed to retrieve Agora token.");
+                if (!token) throw new Error("Failed to retrieve Agora token. The video call cannot proceed.");
+
                 await client.join(AGORA_APP_ID, roomId, token, uid);
-                const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-                localAudioTrack.current = audioTrack;
-                localVideoTrack.current = videoTrack;
-                setLocalVideoTrackState(videoTrack);
-                await client.publish([audioTrack, videoTrack]);
+
+                // Try to get and publish tracks, but allow joining as a viewer if it fails.
+                try {
+                    const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+                    localAudioTrack.current = audioTrack;
+                    localVideoTrack.current = videoTrack;
+                    setLocalVideoTrackState(videoTrack);
+                    await client.publish([audioTrack, videoTrack]);
+                } catch (publishError: any) {
+                    console.error("Could not get or publish media tracks:", publishError);
+                    onSetTtsMessageRef.current("Could not find camera/mic. You are in viewer mode.");
+                    // Do not call onGoBack. Allow user to stay as a viewer.
+                }
+
             } catch (error: any) {
-                console.error("Agora failed to join or publish:", error);
-                if (error.name === 'NotFoundError' || error.code === 'DEVICE_NOT_FOUND') onSetTtsMessageRef.current("Could not find a microphone or camera.");
-                else if (error.name === 'NotAllowedError' || error.code === 'PERMISSION_DENIED') onSetTtsMessageRef.current("Microphone/camera access was denied.");
-                else onSetTtsMessageRef.current(`Could not start the video room: ${error.message || 'Unknown error'}`);
+                console.error("Agora failed to join room:", error);
+                onSetTtsMessageRef.current(`Could not join the video room: ${error.message || 'Unknown error'}`);
                 onGoBackRef.current();
             }
         };
