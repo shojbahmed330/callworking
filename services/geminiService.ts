@@ -5,10 +5,9 @@ import { firebaseService } from './firebaseService';
 
 
 // --- Gemini API Initialization ---
-const apiKey = process.env.API_KEY;
+const apiKey = process.env.API_KEY || '';
 if (!apiKey) {
-    alert("CRITICAL ERROR: Gemini API key is not configured. Please ensure your environment variables are set up correctly.");
-    throw new Error("API_KEY not configured. Please set it in your environment.");
+    console.error("CRITICAL ERROR: Gemini API key is not configured. Gemini-related features will not work. Please ensure your environment variables are set up correctly.");
 }
 const ai = new GoogleGenAI({ apiKey });
 

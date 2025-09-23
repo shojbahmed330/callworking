@@ -2159,7 +2159,7 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
     },
     async getAgoraToken(channelName: string, uid: string | number): Promise<string | null> {
         // This function now calls the local proxy server to avoid CORS issues.
-        const TOKEN_SERVER_URL = 'https://agora-nine-swart.vercel.app/api/token';
+        const TOKEN_SERVER_URL = '/api/proxy';
 
         try {
             const response = await fetch(`${TOKEN_SERVER_URL}?channelName=${channelName}&uid=${uid}`);
