@@ -6,19 +6,17 @@ import LiveChatDisplay, { LiveChatMessage } from './LiveChatDisplay';
 import { getTtsPrompt, AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
+import { v4 as uuidv4 } from 'uuid';
 import { useSettings } from '../contexts/SettingsContext';
 
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0; // Convert to 32bit integer
-  }
-  // Return a positive number within the valid UID range.
-  // The result of | 0 is a signed 32-bit integer. We make it positive
-  // and ensure it's not 0, as 0 is sometimes a reserved value.
-  return Math.abs(hash) || 1;
+function generateNumericUID(id: string): number {
+    // Create a consistent, but not necessarily unique, numeric ID from the user's string ID.
+    const userUUID = uuidv4({
+        random: [...Array(16)].map((_, i) => id.charCodeAt(i % id.length) || 0),
+    });
+    // Convert the first 8 characters of the UUID to a 32-bit integer.
+    // This has a low chance of collision for a small number of users.
+    return parseInt(userUUID.slice(0, 8), 16) >>> 0;
 }
 
 interface LiveVideoRoomScreenProps {
@@ -186,14 +184,13 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             if (mainSpeaker.level > 5) setActiveSpeakerId(mainSpeaker.uid.toString());
             else setActiveSpeakerId(null);
         };
-        const joinAndPublish = async () => {
+        const joinAndPublish = async (uid: number) => {
             try {
                 client.on('user-published', handleUserPublished);
                 client.on('user-unpublished', handleUserUnpublished);
                 client.on('user-left', handleUserLeft);
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
-                const uid = simpleHash(currentUser.id);
                 const token = await geminiService.getAgoraToken(roomId, uid);
                 if (!token) throw new Error("Failed to retrieve Agora token.");
                 await client.join(AGORA_APP_ID, roomId, token, uid);
@@ -233,7 +230,10 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 }
             }
         };
-        geminiService.joinLiveVideoRoom(currentUser.id, roomId).then(joinAndPublish);
+        const uid = generateNumericUID(currentUser.id);
+        geminiService.joinLiveVideoRoom(currentUser.id, roomId, uid).then(() => {
+            joinAndPublish(uid);
+        });
         return () => {
             isMounted.current = false;
             localAudioTrack.current?.close();
@@ -306,7 +306,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
         // Add all participants from the room document
         room.participants.forEach(p => {
-            const agoraUid = simpleHash(p.id).toString();
+            const agoraUid = generateNumericUID(p.id).toString();
             const remoteUser = remoteUsersMap[agoraUid];
             participantMap.set(p.id, {
                 ...p,
@@ -377,7 +377,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                         isHost={true}
                         isSpeaking={host.id === activeSpeakerId}
                         localVideoTrack={localVideoTrackState}
-                        remoteUser={remoteUsersMap[simpleHash(host.id).toString()]}
+                        remoteUser={remoteUsersMap[generateNumericUID(host.id).toString()]}
                         isFullScreen={true}
                     />
                 </div>
@@ -406,7 +406,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                                         isHost={false}
                                         isSpeaking={p.id === activeSpeakerId}
                                         localVideoTrack={localVideoTrackState}
-                                        remoteUser={remoteUsersMap[simpleHash(p.id).toString()]}
+                                        remoteUser={remoteUsersMap[generateNumericUID(p.id).toString()]}
                                     />
                                 </div>
                             ))}

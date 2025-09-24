@@ -1540,12 +1540,12 @@ async joinLiveAudioRoom(userId: string, roomId: string): Promise<void> {
         listeners: arrayUnion({ id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl }),
     });
 },
-async joinLiveVideoRoom(userId: string, roomId: string): Promise<void> {
+async joinLiveVideoRoom(userId: string, roomId: string, agoraUid: number): Promise<void> {
     const user = await this.getUserProfileById(userId);
     if (!user) return;
     const roomRef = db.collection('liveVideoRooms').doc(roomId);
     await roomRef.update({
-        participants: arrayUnion({ ...user, isMuted: false, isCameraOff: false }),
+        participants: arrayUnion({ ...user, isMuted: false, isCameraOff: false, agoraUid }),
     });
 },
 async leaveLiveAudioRoom(userId: string, roomId: string): Promise<void> {
