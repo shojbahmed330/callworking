@@ -122,6 +122,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
     const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
+    const [isConnected, setIsConnected] = useState(false);
     const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
     const [showHeartAnimation, setShowHeartAnimation] = useState(false);
     const [menuOpenFor, setMenuOpenFor] = useState<{ participantId: string; x: number; y: number } | null>(null);
@@ -201,6 +202,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                     await client.leave();
                     return;
                 }
+                setIsConnected(true);
 
                 try {
                     const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -234,13 +236,17 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         geminiService.joinLiveVideoRoom(currentUser.id, roomId).then(joinAndPublish);
         return () => {
             isMounted.current = false;
+            localAudioTrack.current?.close();
+            localVideoTrack.current?.close();
+
             client.off('user-published', handleUserPublished);
             client.off('user-unpublished', handleUserUnpublished);
             client.off('user-left', handleUserLeft);
             client.off('volume-indicator', handleVolumeIndicator);
-            localAudioTrack.current?.close();
-            localVideoTrack.current?.close();
-            client.leave();
+
+            if (isConnected) {
+                client.leave();
+            }
             geminiService.leaveLiveVideoRoom(currentUser.id, roomId);
         };
     }, [roomId, currentUser.id, onGoBack, onSetTtsMessage, language]);

@@ -5,11 +5,22 @@ import { firebaseService } from './firebaseService';
 
 
 // --- Gemini API Initialization ---
-const apiKey = process.env.API_KEY || '';
-if (!apiKey) {
-    console.error("CRITICAL ERROR: Gemini API key is not configured. Gemini-related features will not work. Please ensure your environment variables are set up correctly.");
+let ai: GoogleGenAI;
+try {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        throw new Error("CRITICAL ERROR: Gemini API key is not configured. Gemini-related features will not work. Please ensure your environment variables are set up correctly.");
+    }
+    ai = new GoogleGenAI({ apiKey });
+} catch (error) {
+    console.error(error.message);
+    // Create a mock ai object that will return errors for all methods
+    ai = {
+        models: {
+            generateContent: () => Promise.reject(new Error("Gemini API not initialized.")),
+        }
+    } as any;
 }
-const ai = new GoogleGenAI({ apiKey });
 
 const NLU_SYSTEM_INSTRUCTION_BASE = `
 You are a powerful NLU (Natural Language Understanding) engine for VoiceBook, a voice-controlled social media app. Your sole purpose is to analyze a user's raw text command and convert it into a structured JSON format. You must understand both English and Bengali (Bangla), including "Banglish" (Bengali words typed with English characters).
@@ -429,6 +440,8 @@ export const geminiService = {
     sendHeartAnimationEvent: (roomId: string) => firebaseService.sendHeartAnimationEvent(roomId),
     listenToHeartAnimationEvents: (roomId: string, callback: () => void) => firebaseService.listenToHeartAnimationEvents(roomId, callback),
     setVideoRoomHost: (roomId: string, newHost: User) => firebaseService.setVideoRoomHost(roomId, newHost),
+    kickParticipantFromVideoRoom: (roomId: string, participantId: string) => firebaseService.kickParticipantFromVideoRoom(roomId, participantId),
+    muteParticipantInVideoRoom: (roomId: string, participantId: string, isMuted: boolean) => firebaseService.updateParticipantMediaState(roomId, participantId, { isMuted }),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),
