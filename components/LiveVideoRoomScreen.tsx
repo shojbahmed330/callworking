@@ -6,18 +6,7 @@ import LiveChatDisplay, { LiveChatMessage } from './LiveChatDisplay';
 import { getTtsPrompt, AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
-import { v4 as uuidv4 } from 'uuid';
 import { useSettings } from '../contexts/SettingsContext';
-
-function generateNumericUID(id: string): number {
-    // Create a consistent, but not necessarily unique, numeric ID from the user's string ID.
-    const userUUID = uuidv4({
-        random: [...Array(16)].map((_, i) => id.charCodeAt(i % id.length) || 0),
-    });
-    // Convert the first 8 characters of the UUID to a 32-bit integer.
-    // This has a low chance of collision for a small number of users.
-    return parseInt(userUUID.slice(0, 8), 16) >>> 0;
-}
 
 interface LiveVideoRoomScreenProps {
   currentUser: User;
@@ -184,22 +173,23 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
             if (mainSpeaker.level > 5) setActiveSpeakerId(mainSpeaker.uid.toString());
             else setActiveSpeakerId(null);
         };
-        const joinAndPublish = async (uid: number) => {
+        const joinAndPublish = async () => {
             try {
                 client.on('user-published', handleUserPublished);
                 client.on('user-unpublished', handleUserUnpublished);
                 client.on('user-left', handleUserLeft);
                 client.enableAudioVolumeIndicator();
                 client.on('volume-indicator', handleVolumeIndicator);
-                const token = await geminiService.getAgoraToken(roomId, uid);
+                const token = await geminiService.getAgoraToken(roomId, null);
                 if (!token) throw new Error("Failed to retrieve Agora token.");
-                await client.join(AGORA_APP_ID, roomId, token, uid);
+                const assignedUid = await client.join(AGORA_APP_ID, roomId, token, null);
 
                 if (!isMounted.current) {
                     await client.leave();
                     return;
                 }
                 setIsConnected(true);
+                await geminiService.updateParticipantAgoraUid(roomId, currentUser.id, assignedUid);
 
                 try {
                     const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -230,10 +220,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 }
             }
         };
-        const uid = generateNumericUID(currentUser.id);
-        geminiService.joinLiveVideoRoom(currentUser.id, roomId, uid).then(() => {
-            joinAndPublish(uid);
-        });
+        joinAndPublish();
         return () => {
             isMounted.current = false;
             localAudioTrack.current?.close();
@@ -273,6 +260,15 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         };
     }, [roomId, onGoBack]);
 
+    useEffect(() => {
+        if (!room || !currentUser) return;
+        const myParticipantData = room.participants.find(p => p.id === currentUser.id);
+        if (myParticipantData?.kicked) {
+            onSetTtsMessage("You have been kicked from the room.");
+            onGoBack();
+        }
+    }, [room, currentUser, onGoBack, onSetTtsMessage]);
+
     const toggleMute = () => {
         if (!localAudioTrack.current) return;
         const muted = !isMuted;
@@ -306,8 +302,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
 
         // Add all participants from the room document
         room.participants.forEach(p => {
-            const agoraUid = generateNumericUID(p.id).toString();
-            const remoteUser = remoteUsersMap[agoraUid];
+            const remoteUser = p.agoraUid ? remoteUsersMap[p.agoraUid.toString()] : undefined;
             participantMap.set(p.id, {
                 ...p,
                 isMuted: !remoteUser?.hasAudio || p.isMuted,
@@ -316,8 +311,9 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
         });
 
         // Add or update the local user's state
+        const localParticipant = participantMap.get(currentUser.id) || currentUser;
         participantMap.set(currentUser.id, {
-            ...(participantMap.get(currentUser.id) || currentUser),
+            ...localParticipant,
             isMuted,
             isCameraOff,
         });
@@ -377,7 +373,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                         isHost={true}
                         isSpeaking={host.id === activeSpeakerId}
                         localVideoTrack={localVideoTrackState}
-                        remoteUser={remoteUsersMap[generateNumericUID(host.id).toString()]}
+                        remoteUser={host.agoraUid ? remoteUsersMap[host.agoraUid.toString()] : undefined}
                         isFullScreen={true}
                     />
                 </div>
@@ -406,7 +402,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                                         isHost={false}
                                         isSpeaking={p.id === activeSpeakerId}
                                         localVideoTrack={localVideoTrackState}
-                                        remoteUser={remoteUsersMap[generateNumericUID(p.id).toString()]}
+                                        remoteUser={p.agoraUid ? remoteUsersMap[p.agoraUid.toString()] : undefined}
                                     />
                                 </div>
                             ))}
@@ -426,19 +422,24 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({ currentUser, 
                 </footer>
             </div>
 
-            {menuOpenFor && (
-                <div
-                    ref={menuRef}
-                    className="absolute bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 w-48 text-white animate-fade-in-fast"
-                    style={{ top: menuOpenFor.y, left: menuOpenFor.x }}
-                >
-                    <ul>
-                        <li><button onClick={() => handleMuteParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Mute Participant</button></li>
-                        <li><button onClick={() => handleMakeHost(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Make Host</button></li>
-                        <li><button onClick={() => handleKickParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 text-red-400 hover:bg-red-500/10">Kick from Room</button></li>
-                    </ul>
-                </div>
-            )}
+            {menuOpenFor && (() => {
+                const participant = participants.find(p => p.id === menuOpenFor.participantId);
+                if (!participant) return null;
+
+                return (
+                    <div
+                        ref={menuRef}
+                        className="absolute bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 w-48 text-white animate-fade-in-fast"
+                        style={{ top: menuOpenFor.y, left: menuOpenFor.x }}
+                    >
+                        <ul>
+                            <li><button onClick={() => handleMuteParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">{participant.isMuted ? 'Unmute' : 'Mute'} Participant</button></li>
+                            <li><button onClick={() => handleMakeHost(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Make Host</button></li>
+                            <li><button onClick={() => handleKickParticipant(menuOpenFor.participantId)} className="w-full text-left p-3 flex items-center gap-3 text-red-400 hover:bg-red-500/10">Kick from Room</button></li>
+                        </ul>
+                    </div>
+                );
+            })()}
         </div>
     );
 };

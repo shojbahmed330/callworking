@@ -1540,12 +1540,12 @@ async joinLiveAudioRoom(userId: string, roomId: string): Promise<void> {
         listeners: arrayUnion({ id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl }),
     });
 },
-async joinLiveVideoRoom(userId: string, roomId: string, agoraUid: number): Promise<void> {
+async joinLiveVideoRoom(userId: string, roomId: string): Promise<void> {
     const user = await this.getUserProfileById(userId);
     if (!user) return;
     const roomRef = db.collection('liveVideoRooms').doc(roomId);
     await roomRef.update({
-        participants: arrayUnion({ ...user, isMuted: false, isCameraOff: false, agoraUid }),
+        participants: arrayUnion({ ...user, isMuted: false, isCameraOff: false }),
     });
 },
 async leaveLiveAudioRoom(userId: string, roomId: string): Promise<void> {
@@ -1658,11 +1658,23 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
 
     async kickParticipantFromVideoRoom(roomId: string, participantId: string): Promise<void> {
         const roomRef = db.collection('liveVideoRooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists) {
-            const participants = roomDoc.data()?.participants || [];
-            const updatedParticipants = participants.filter((p: any) => p.id !== participantId);
-            await roomRef.update({ participants: updatedParticipants });
+        try {
+            await db.runTransaction(async (transaction) => {
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists) {
+                    throw "Room does not exist!";
+                }
+                const participants = roomDoc.data()?.participants || [];
+                const participantIndex = participants.findIndex((p: any) => p.id === participantId);
+
+                if (participantIndex !== -1) {
+                    const updatedParticipants = [...participants];
+                    updatedParticipants[participantIndex].kicked = true;
+                    transaction.update(roomRef, { participants: updatedParticipants });
+                }
+            });
+        } catch (error) {
+            console.error("Failed to kick participant:", error);
         }
     },
 
@@ -1675,6 +1687,28 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             avatarUrl: newHost.avatarUrl,
         };
         await roomRef.update({ host: newHostInfo });
+    },
+
+    async updateParticipantAgoraUid(roomId: string, participantId: string, agoraUid: number): Promise<void> {
+        const roomRef = db.collection('liveVideoRooms').doc(roomId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists) {
+                    throw "Room does not exist!";
+                }
+                const participants = roomDoc.data()?.participants || [];
+                const participantIndex = participants.findIndex((p: any) => p.id === participantId);
+
+                if (participantIndex !== -1) {
+                    const updatedParticipants = [...participants];
+                    updatedParticipants[participantIndex].agoraUid = agoraUid;
+                    transaction.update(roomRef, { participants: updatedParticipants });
+                }
+            });
+        } catch (error) {
+            console.error("Failed to update participant agora uid:", error);
+        }
     },
 
     async updateParticipantMediaState(roomId: string, participantId: string, state: { isMuted?: boolean; isCameraOff?: boolean }): Promise<void> {

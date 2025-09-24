@@ -422,7 +422,7 @@ export const geminiService = {
     createLiveAudioRoom: (host: User, topic: string) => firebaseService.createLiveAudioRoom(host, topic),
     createLiveVideoRoom: (host: User, topic: string) => firebaseService.createLiveVideoRoom(host, topic),
     joinLiveAudioRoom: (userId: string, roomId: string) => firebaseService.joinLiveAudioRoom(userId, roomId),
-    joinLiveVideoRoom: (userId: string, roomId: string, agoraUid: number) => firebaseService.joinLiveVideoRoom(userId, roomId, agoraUid),
+    joinLiveVideoRoom: (userId: string, roomId: string) => firebaseService.joinLiveVideoRoom(userId, roomId),
     leaveLiveAudioRoom: (userId: string, roomId: string) => firebaseService.leaveLiveAudioRoom(userId, roomId),
     leaveLiveVideoRoom: (userId: string, roomId: string) => firebaseService.leaveLiveVideoRoom(userId, roomId),
     endLiveAudioRoom: (userId: string, roomId: string) => firebaseService.endLiveAudioRoom(userId, roomId),
@@ -442,6 +442,7 @@ export const geminiService = {
     setVideoRoomHost: (roomId: string, newHost: User) => firebaseService.setVideoRoomHost(roomId, newHost),
     kickParticipantFromVideoRoom: (roomId: string, participantId: string) => firebaseService.kickParticipantFromVideoRoom(roomId, participantId),
     muteParticipantInVideoRoom: (roomId: string, participantId: string, isMuted: boolean) => firebaseService.updateParticipantMediaState(roomId, participantId, { isMuted }),
+    updateParticipantAgoraUid: (roomId: string, participantId: string, agoraUid: number) => firebaseService.updateParticipantAgoraUid(roomId, participantId, agoraUid),
     
     // --- Ads & Campaigns ---
     getCampaignsForSponsor: (sponsorId: string) => firebaseService.getCampaignsForSponsor(sponsorId),
