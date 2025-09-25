@@ -5,8 +5,8 @@ export const config = {
   runtime: 'edge',
 };
 
-export default async function handler(request: Request) {
-  // Add CORS headers for the preflight OPTIONS request
+export default async function handler(request) {
+  // ✅ Add CORS headers for the preflight OPTIONS request
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -22,36 +22,53 @@ export default async function handler(request: Request) {
   const channelName = searchParams.get('channelName');
   const uid = searchParams.get('uid');
 
-  if (!channelName || !uid) {
-    return new Response(JSON.stringify({ error: 'channelName and uid are required' }), {
-      status: 400,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+  // ✅ Guard: channelName এবং uid না থাকলে সাথে সাথে 400 error
+  if (!channelName || !uid || uid === 'null' || uid === 'undefined') {
+    return new Response(
+      JSON.stringify({ error: 'channelName and uid are required' }),
+      {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
   }
 
-  const tokenServerUrl = `https://agora-nine-swart.vercel.app/api/token?channelName=${channelName}&uid=${uid}`;
+  // ✅ Agora token server URL তৈরি করো
+  const tokenServerUrl = `https://agora-nine-swart.vercel.app/api/token?channelName=${encodeURIComponent(
+    channelName
+  )}&uid=${encodeURIComponent(uid)}`;
 
   try {
-    const tokenResponse = await fetch(tokenServerUrl);
+    const tokenResponse = await fetch(tokenServerUrl, {
+      method: 'GET',
+    });
 
+    // ✅ Upstream error হলে স্পষ্টভাবে রিটার্ন করো
     if (!tokenResponse.ok) {
-       const errorText = await tokenResponse.text();
-       console.error(`Token server error: ${tokenResponse.status} ${errorText}`);
-       return new Response(JSON.stringify({ error: 'Failed to fetch token from upstream server' }), {
-         status: tokenResponse.status,
-         headers: { 
-           'Content-Type': 'application/json',
-           'Access-Control-Allow-Origin': '*',
+      const errorText = await tokenResponse.text();
+      console.error(
+        `Token server error: ${tokenResponse.status} ${errorText}`
+      );
+      return new Response(
+        JSON.stringify({
+          error: `Failed to fetch token from upstream server (${tokenResponse.status})`,
+        }),
+        {
+          status: tokenResponse.status,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
           },
-       });
+        }
+      );
     }
 
     const data = await tokenResponse.json();
 
-    // Return the response from the token server, adding our own CORS headers
+    // ✅ Return the response from the token server, adding our own CORS headers
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
@@ -63,12 +80,15 @@ export default async function handler(request: Request) {
     });
   } catch (error) {
     console.error('Proxy fetch error:', error);
-    return new Response(JSON.stringify({ error: 'Internal Server Error in proxy' }), {
-      status: 500,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-       },
-    });
+    return new Response(
+      JSON.stringify({ error: 'Internal Server Error in proxy' }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
   }
 }
