@@ -3,7 +3,6 @@ import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Commen
 import { VOICE_EMOJI_MAP, MOCK_MUSIC_LIBRARY, DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS } from '../constants';
 import { firebaseService } from './firebaseService';
 
-
 // --- Gemini API Initialization ---
 const apiKey = process.env.API_KEY;
 if (!apiKey) {
@@ -542,5 +541,17 @@ export const geminiService = {
     listenToCall: (callId, callback) => firebaseService.listenToCall(callId, callback),
     updateCallStatus: (callId, status) => firebaseService.updateCallStatus(callId, status),
 
-    getAgoraToken: (channelName: string, uid: string | number) => firebaseService.getAgoraToken(channelName, uid),
+    getAgoraToken: async (channelName: string, uid: number) => {
+        if (!uid && uid !== 0) {
+            throw new Error('UID missing');
+        }
+        const response = await fetch(`/api/proxy?channelName=${channelName}&uid=${uid}`);
+        if (!response.ok) {
+            const text = await response.text();
+            console.error("Agora token server error:", text);
+            throw new Error("Failed to fetch token from upstream server");
+        }
+        const data = await response.json();
+        return data.token;
+    },
 };
