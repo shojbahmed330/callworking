@@ -3,9 +3,14 @@ import { LiveVideoRoom, User, VideoParticipantState } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
 import LiveChatDisplay, { LiveChatMessage } from './LiveChatDisplay';
-import { getTtsPrompt, AGORA_APP_ID } from '../constants';
+import { AGORA_APP_ID } from '../constants';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IMicrophoneAudioTrack, ICameraVideoTrack } from 'agora-rtc-sdk-ng';
+import type {
+  IAgoraRTCClient,
+  IAgoraRTCRemoteUser,
+  IMicrophoneAudioTrack,
+  ICameraVideoTrack,
+} from 'agora-rtc-sdk-ng';
 import { useSettings } from '../contexts/SettingsContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
@@ -141,26 +146,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
     onSetTtsMessageRef.current = onSetTtsMessage;
   });
 
-  const [messages, setMessages] = useState<LiveChatMessage[]>([
-    {
-      id: '1',
-      author: {
-        id: 'a',
-        name: 'Alice',
-        avatarUrl: 'https://i.pravatar.cc/150?u=alice',
-      },
-      text: 'Hello everyone! This is amazing!',
-    },
-    {
-      id: '2',
-      author: {
-        id: 'b',
-        name: 'Bob',
-        avatarUrl: 'https://i.pravatar.cc/150?u=bob',
-      },
-      text: 'Hey Alice! Great to see you live. Looking sharp!',
-    },
-  ]);
+  const [messages, setMessages] = useState<LiveChatMessage[]>([]);
 
   useEffect(() => {
     if (!AGORA_APP_ID) {
@@ -173,6 +159,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
     }
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
     agoraClient.current = client;
+
     const handleUserPublished = async (
       user: IAgoraRTCRemoteUser,
       mediaType: 'audio' | 'video'
@@ -181,7 +168,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
       if (mediaType === 'audio') user.audioTrack?.play();
       setRemoteUsers(Array.from(client.remoteUsers));
     };
-    const handleUserUnpublished = (user: IAgoraRTCRemoteUser) =>
+    const handleUserUnpublished = () =>
       setRemoteUsers(Array.from(client.remoteUsers));
     const handleUserLeft = (user: IAgoraRTCRemoteUser) =>
       setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
@@ -198,7 +185,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
       else setActiveSpeakerId(null);
     };
 
-    // ✅ joinAndPublish with UID fallback
+    // ✅ joinAndPublish with UID fallback + console.log
     const joinAndPublish = async () => {
       try {
         client.on('user-published', handleUserPublished);
@@ -214,6 +201,7 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
         } else {
           uid = Math.floor(Math.random() * 10000000);
         }
+        // ✅ এখানে console.log:
         console.log('🔹 UID sending to token server:', uid);
 
         const token = await geminiService.getAgoraToken(roomId, uid);
@@ -274,32 +262,6 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
     );
     return () => unsubscribe();
   }, [roomId]);
-
-  useEffect(() => {
-    const botResponses = [
-      'Wow, cool!',
-      'Loving this stream!',
-      '🔥🔥🔥',
-      'Can you do a shout out?',
-      'Where are you from?',
-      'This is my first time here, looks great!',
-    ];
-    let messageIndex = 0;
-    const intervalId = setInterval(() => {
-      const botMessage: LiveChatMessage = {
-        id: new Date().toISOString() + '-bot',
-        author: {
-          id: `bot-${messageIndex}`,
-          name: 'BotUser',
-          avatarUrl: `https://i.pravatar.cc/150?u=bot${messageIndex}`,
-        },
-        text: botResponses[messageIndex % botResponses.length],
-      };
-      setMessages((prev) => [...prev, botMessage]);
-      messageIndex++;
-    }, 8000);
-    return () => clearInterval(intervalId);
-  }, []);
 
   const toggleMute = () => {
     if (!localAudioTrack.current) return;
@@ -420,8 +382,176 @@ const LiveVideoRoomScreen: React.FC<LiveVideoRoomScreenProps> = ({
   );
 };
 
-// বাকি DesktopLayout আর MobileLayout আগের মতোই থাকবে…
+const DesktopLayout = (props) => (
+  <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
+    <header className="p-4 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
+      <div className="bg-black/30 p-2 rounded-lg">
+        <h1 className="text-lg font-bold truncate">{props.room.topic}</h1>
+        <p className="text-xs text-slate-300">
+          {props.participantsWithLocal.length} watching
+        </p>
+      </div>
+      <button
+        onClick={props.onGoBack}
+        className="bg-red-600/80 hover:bg-red-500 font-bold py-2 px-4 rounded-lg text-sm"
+      >
+        Leave
+      </button>
+    </header>
+    <main className="flex-grow flex flex-col justify-end p-4">
+      <div className="flex justify-between items-end w-full">
+        <div className="w-full max-w-sm lg:max-w-md h-[40vh] pointer-events-auto">
+          <LiveChatDisplay
+            messages={props.messages}
+            currentUser={props.currentUser}
+            onSendMessage={props.handleSendMessage}
+          />
+        </div>
+        <div className="hidden md:flex flex-col gap-3 max-h-[60vh] overflow-y-auto pointer-events-auto">
+          {props.otherParticipants.map((p) => (
+            <div
+              key={p.id}
+              className="w-24 h-24 flex-shrink-0 rounded-lg shadow-lg"
+            >
+              <ParticipantVideo
+                participant={p}
+                isLocal={p.id === props.currentUser.id}
+                isHost={false}
+                isSpeaking={p.id === props.activeSpeakerId}
+                localVideoTrack={props.localVideoTrackState}
+                remoteUser={
+                  props.remoteUsersMap[
+                    (parseInt(p.id, 36) % 10000000).toString()
+                  ]
+                }
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
+    <footer className="p-4 flex justify-center items-center gap-4 bg-gradient-to-t from-black/50 to-transparent pointer-events-auto">
+      <button
+        onClick={props.toggleMute}
+        className={`p-3 rounded-full transition-colors ${
+          props.isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'
+        }`}
+      >
+        <Icon
+          name={props.isMuted ? 'microphone-slash' : 'mic'}
+          className="w-5 h-5"
+        />
+      </button>
+      <button
+        onClick={props.toggleCamera}
+        className={`p-3 rounded-full transition-colors ${
+          props.isCameraOff
+            ? 'bg-red-600'
+            : 'bg-slate-600/70 hover:bg-slate-500'
+        }`}
+      >
+        <Icon
+          name={props.isCameraOff ? 'video-camera-slash' : 'video-camera'}
+          className="w-5 h-5"
+        />
+      </button>
+      <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
+        <Icon name="coin" className="w-5 h-5" />
+      </button>
+      <button className="p-3 rounded-full bg-pink-500/70 hover:bg-pink-400">
+        <Icon name="like" className="w-5 h-5" />
+      </button>
+    </footer>
+  </div>
+);
 
-// ... (DesktopLayout এবং MobileLayout একই থাকবে)
+const MobileLayout = (props) => (
+  <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
+    <header className="p-2 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent pointer-events-auto">
+      <div className="bg-black/30 p-2 rounded-lg flex items-center gap-2">
+        <img
+          src={props.host?.avatarUrl}
+          alt={props.host?.name}
+          className="w-8 h-8 rounded-full"
+        />
+        <div>
+          <h1 className="text-md font-bold truncate">{props.room.topic}</h1>
+          <p className="text-xs text-slate-300">
+            {props.participantsWithLocal.length} watching
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={props.onGoBack}
+        className="bg-red-600/80 hover:bg-red-500 font-bold p-2 rounded-full text-sm"
+      >
+        <Icon name="close" className="w-4 h-4" />
+      </button>
+    </header>
+
+    <div className="flex-grow" />
+
+    <main className="w-full p-2 flex flex-col gap-2 pointer-events-auto">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        {props.otherParticipants.map((p) => (
+          <div
+            key={p.id}
+            className="w-16 h-16 flex-shrink-0 rounded-lg shadow-lg"
+          >
+            <ParticipantVideo
+              participant={p}
+              isLocal={p.id === props.currentUser.id}
+              isHost={false}
+              isSpeaking={p.id === props.activeSpeakerId}
+              localVideoTrack={props.localVideoTrackState}
+              remoteUser={
+                props.remoteUsersMap[
+                  (parseInt(p.id, 36) % 10000000).toString()
+                ]
+              }
+            />
+          </div>
+        ))}
+      </div>
+      <div className="h-48">
+        <LiveChatDisplay
+          messages={props.messages}
+          currentUser={props.currentUser}
+          onSendMessage={props.handleSendMessage}
+        />
+      </div>
+    </main>
+
+    <footer className="p-2 flex justify-end items-center gap-2 pointer-events-auto">
+      <button
+        onClick={props.toggleMute}
+        className={`p-3 rounded-full transition-colors ${
+          props.isMuted ? 'bg-red-600' : 'bg-slate-600/70 hover:bg-slate-500'
+        }`}
+      >
+        <Icon
+          name={props.isMuted ? 'microphone-slash' : 'mic'}
+          className="w-5 h-5"
+        />
+      </button>
+      <button
+        onClick={props.toggleCamera}
+        className={`p-3 rounded-full transition-colors ${
+          props.isCameraOff
+            ? 'bg-red-600'
+            : 'bg-slate-600/70 hover:bg-slate-500'
+        }`}
+      >
+        <Icon
+          name={props.isCameraOff ? 'video-camera-slash' : 'video-camera'}
+          className="w-5 h-5"
+        />
+      </button>
+      <button className="p-3 rounded-full bg-yellow-500/70 hover:bg-yellow-400">
+        <Icon name="coin" className="w-5 h-5" />
+      </button>
+    </footer>
+  </div>
+);
 
 export default LiveVideoRoomScreen;
